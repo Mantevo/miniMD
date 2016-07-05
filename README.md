@@ -1,4 +1,3 @@
-/* ----------------------------------------------------------------------
    miniMD is a simple, parallel molecular dynamics (MD) code.   miniMD is
    an MD microapplication in the Mantevo project at Sandia National 
    Laboratories ( http://www.mantevo.org ). The primary 
@@ -26,7 +25,7 @@
    For questions, contact Christian Trott (crtrott@sandia.gov). 
 
    Please read the accompanying README and LICENSE files.
----------------------------------------------------------------------- */
+
 
 
 ------------------------------------------------
