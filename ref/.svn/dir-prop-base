@@ -1,0 +1,24 @@
+K 10
+svn:ignore
+V 135
+Obj_intel64
+
+Obj_openmpi
+
+miniMD_openmpi
+
+run_tests
+
+run_perf_threaded
+
+runtest
+
+run_bench
+
+run_perf_mpi
+
+run_one_test
+
+run_bench_core
+
+END

@@ -1,0 +1,104 @@
+# Makefile for mpicxx compiler
+
+SHELL = /bin/sh
+
+# Default Options
+
+AVX = yes
+SIMD = yes
+
+#.IGNORE:
+
+# System-specific settings
+
+
+CC =		mpiicpc
+CCFLAGS =	-O3 -fasm-blocks -DMPICH_IGNORE_CXX_SEEK -restrict -vec_report2 -fasm-blocks -fopenmp -DNOCHUNK
+LINK =		mpiicpc
+LINKFLAGS =	-O3 -fasm-blocks -fopenmp
+USRLIB =	
+SYSLIB =	
+SIZE =		size
+
+# Check for KNC compile
+ifeq ($(KNC), yes)
+CCFLAGS += -mmic 
+LINKFLAGS += -mmic  
+override AVX = 
+endif
+
+ifeq ($(AVX), yes)
+CCFLAGS += -mavx
+LINKFLAGS += -mavx
+endif
+
+ifeq ($(SIMD), yes)
+CCFLAGS += -DUSE_SIMD
+endif
+
+ifeq ($(ANSI_ALIAS), yes)
+CCFLAGS += -ansi-alias 
+LINKFLAGS += -ansi-alias
+endif
+
+ifeq ($(RED_PREC), yes)
+ifeq ($(KNC), yes)
+CCFLAGS += -fimf-precision=low -fimf-domain-exclusion=15 
+LINKFLAGS += -fimf-precision=low -fimf-domain-exclusion=15 
+else
+CCFLAGS += -mGLOB_default_function_attrs="use_approx_f64_divide=true"
+LINKFLAGS += -mGLOB_default_function_attrs="use_approx_f64_divide=true"
+endif
+endif
+
+ifeq ($(GSUNROLL), yes)
+ifeq ($(KNC), yes)
+CCFLAGS += -mGLOB_default_function_attrs="gather_scatter_loop_unroll=7; use_gather_scatter_hint=on"
+LINKFLAGS += -mGLOB_default_function_attrs="gather_scatter_loop_unroll=7; use_gather_scatter_hint=on"
+endif
+endif
+
+ifeq ($(PAD), 3)
+CCFLAGS += -DPAD=3 
+LINKFLAGS += -DPAD=3 
+endif
+
+ifeq ($(PAD), 4)
+CCFLAGS += -DPAD=4 
+LINKFLAGS += -DPAD=4 
+endif
+
+ifeq ($(DEBUG), yes)
+CCFLAGS += -g -debug inline-debug-info 
+LINKFLAGS += -g -debug inline-debug-info
+endif
+
+ifeq ($(SP), yes)
+CCFLAGS += -DPRECISION=1 
+LINKFLAGS += -DPRECISION=1
+else
+CCFLAGS += -DPRECISION=2
+LINKFLAGS += -DPRECISION=2
+endif
+
+ifeq ($(LIBRT),yes)
+CCFLAGS += -DPREC_TIMER
+USRLIB += -lrt
+endif
+
+# Link rule
+
+$(EXE):	$(OBJ)
+	$(LINK) $(OBJ) $(LINKFLAGS) $(USRLIB) $(SYSLIB) -o $(EXE)
+	$(SIZE) $(EXE)
+	
+
+# Compilation rules
+
+.cpp.o:
+	$(CC) $(CCFLAGS) -E $*.cpp > $*.2.cpp
+	$(CC) $(CCFLAGS) -c $*.2.cpp -o $*.o
+ 
+# Individual dependencies
+
+$(OBJ): $(INC)
