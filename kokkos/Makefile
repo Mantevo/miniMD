@@ -1,25 +1,26 @@
 #Set the path to MPI
 MPI_PATH = 
 #Use MPI
-HAVE_MPI = yes
+HAVE_MPI = no
 
 #Set the path to Kokkos
-KOKKOS_PATH = /home/crtrott/kokkos
+KOKKOS_PATH = /gpfs/gpfs_stage1/crtrott/kokkos
 #Set the Devices to compile for
-KOKKOS_DEVICES=OpenMP
+KOKKOS_DEVICES=OpenMPTarget
 #Set the Architecture to compiler for
-KOKKOS_ARCH=SNB
+KOKKOS_ARCH=Power8
 #Set third party library usage
 KOKKOS_USE_TPL=
 
-CXXFLAGS = -O3 -g 
+CXXFLAGS = -O3 -g -fopenmp-ignore-unmappable-types
+#CXXFLAGS += --cuda-path=/usr/local/cuda-8.0 --cuda-gpu-arch=sm_35 -x cuda 
 LINKFLAGS = 
 LIB =
 
 ifeq ($(HAVE_MPI), yes)
 CXX = mpicxx
 else
-CXX = g++
+CXX = clang++
 CXXFLAGS += -I./MPI-Stubs
 LIB += MPI-Stubs/libmpi_stubs.a
 endif

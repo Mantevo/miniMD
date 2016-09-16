@@ -135,9 +135,9 @@ void ForceEAM::compute_halfneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int
   // fp = derivative of embedding energy at each atom
   // phi = embedding energy at each atom
 
-  if(evflag)
-    Kokkos::parallel_reduce(Kokkos::RangePolicy<TagHalfNeighMiddle<1> >(0,nlocal), *this ,t_eng_virial);
-  else
+  //if(evflag)
+  //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagHalfNeighMiddle<1> >(0,nlocal), *this ,t_eng_virial);
+  //else
     Kokkos::parallel_for(Kokkos::RangePolicy<TagHalfNeighMiddle<0> >(0,nlocal), *this);
 
   // communicate derivative of embedding function
@@ -148,9 +148,9 @@ void ForceEAM::compute_halfneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int
   // compute forces on each atom
   // loop over neighbors of my atoms
   eng_virial_type t_eng_virial_2;
-  if(evflag)
-    Kokkos::parallel_reduce(Kokkos::RangePolicy<TagHalfNeighFinal<1> >(0,nlocal), *this ,t_eng_virial_2);
-  else
+  //if(evflag)
+  //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagHalfNeighFinal<1> >(0,nlocal), *this ,t_eng_virial_2);
+  //else
     Kokkos::parallel_for(Kokkos::RangePolicy<TagHalfNeighFinal<0> >(0,nlocal), *this);
 
   t_eng_virial += t_eng_virial_2;
@@ -379,9 +379,9 @@ void ForceEAM::compute_fullneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int
   // rho = density at each atom
   // loop over neighbors of my atoms
 
-  if(evflag)
-    Kokkos::parallel_reduce(Kokkos::RangePolicy<TagFullNeighInitial<1> >(0,nlocal), *this ,t_eng_virial);
-  else
+  //if(evflag)
+  //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagFullNeighInitial<1> >(0,nlocal), *this ,t_eng_virial);
+  //else
     Kokkos::parallel_for(Kokkos::RangePolicy<TagFullNeighInitial<0> >(0,nlocal), *this );
 
   // fp = derivative of embedding energy at each atom
@@ -397,9 +397,9 @@ void ForceEAM::compute_fullneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int
   // compute forces on each atom
   // loop over neighbors of my atoms
 
-  if(evflag)
-    Kokkos::parallel_reduce(Kokkos::RangePolicy<TagFullNeighFinal<1> >(0,nlocal), *this ,t_eng_virial_2);
-  else
+  //if(evflag)
+  //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagFullNeighFinal<1> >(0,nlocal), *this ,t_eng_virial_2);
+  //else
     Kokkos::parallel_for(Kokkos::RangePolicy<TagFullNeighFinal<0> >(0,nlocal), *this );
 
   t_eng_virial += t_eng_virial_2;

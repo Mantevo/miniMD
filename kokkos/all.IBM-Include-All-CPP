@@ -1,0 +1,12 @@
+#include<atom.cpp>
+#include<comm.cpp>
+#include<force_eam.cpp>
+#include<force_lj.cpp>
+#include<input.cpp>
+#include<integrate.cpp>
+#include<ljs.cpp>
+#include<neighbor.cpp>
+#include<output.cpp>
+#include<setup.cpp>
+#include<thermo.cpp>
+#include<timer.cpp>

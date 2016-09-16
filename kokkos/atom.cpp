@@ -158,7 +158,7 @@ void Atom::unpack_reverse(int n, int_1d_view_type list_in, float_1d_view_type bu
 
 void Atom::sort(Neighbor &neighbor)
 {
-
+return;
   //The following Kokkos sort works and is not slower than the handrolled one, but it does
   //produce a different order than what is used in the neighboring process resulting in unoptimal
   //locality for that.

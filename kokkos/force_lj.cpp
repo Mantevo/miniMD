@@ -106,7 +106,11 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 #ifdef KOKKOS_HAVE_CUDA
   const int host_device = 0;
 #else
+  #ifdef KOKKOS_HAVE_OPENMPTARGET
+  const int host_device = 0;
+  #else
   const int host_device = 1;
+  #endif
 #endif
 
   nlocal = atom.nlocal;
@@ -293,14 +297,14 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   // store force on both atoms i and j
 
   if(ntypes>MAX_STACK_TYPES) {
-    if(EVFLAG)
-      Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeHalfNeighThread<1,GHOST_NEWTON,0> >(0,nlocal), *this , t_eng_virial);
-    else
+    //if(EVFLAG)
+    //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeHalfNeighThread<1,GHOST_NEWTON,0> >(0,nlocal), *this , t_eng_virial);
+    //else
       Kokkos::parallel_for(Kokkos::RangePolicy<TagComputeHalfNeighThread<0,GHOST_NEWTON,0> >(0,nlocal), *this );
   } else {
-    if(EVFLAG)
-      Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeHalfNeighThread<1,GHOST_NEWTON,1> >(0,nlocal), *this , t_eng_virial);
-    else
+    //if(EVFLAG)
+    //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeHalfNeighThread<1,GHOST_NEWTON,1> >(0,nlocal), *this , t_eng_virial);
+    //else
       Kokkos::parallel_for(Kokkos::RangePolicy<TagComputeHalfNeighThread<0,GHOST_NEWTON,1> >(0,nlocal), *this );
   }
   eng_vdwl += t_eng_virial.eng;
@@ -321,14 +325,14 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   // store force on atom i
 
   if(ntypes>MAX_STACK_TYPES) {
-    if(EVFLAG)
-      Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeFullNeigh<1,0> >(0,nlocal), *this , t_eng_virial);
-    else
+    //if(EVFLAG)
+    //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeFullNeigh<1,0> >(0,nlocal), *this , t_eng_virial);
+    //else
       Kokkos::parallel_for(Kokkos::RangePolicy<TagComputeFullNeigh<0,0> >(0,nlocal), *this );
   } else {
-    if(EVFLAG)
-      Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeFullNeigh<1,1> >(0,nlocal), *this , t_eng_virial);
-    else
+    //if(EVFLAG)
+    //  Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeFullNeigh<1,1> >(0,nlocal), *this , t_eng_virial);
+    //else
       Kokkos::parallel_for(Kokkos::RangePolicy<TagComputeFullNeigh<0,1> >(0,nlocal), *this );
   }
   t_eng_virial.eng *= 4.0;

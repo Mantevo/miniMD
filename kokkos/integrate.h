@@ -28,7 +28,8 @@
 
    Please read the accompanying README and LICENSE files.
 ---------------------------------------------------------------------- */
-
+#ifndef INTEGRATE_H
+#define INTEGRATE_H
 #include "atom.h"
 #include "force.h"
 #include "neighbor.h"
@@ -63,3 +64,4 @@ class Integrate
     void operator() (TagFinalIntegrate, const int& i) const;
     void run(Atom &, Force*, Neighbor &, Comm &, Thermo &, Timer &);
 };
+#endif

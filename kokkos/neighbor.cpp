@@ -397,6 +397,13 @@ void Neighbor::operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> , const typ
   }
 }
 
+template<class View>
+void fill_bins(View view,int mbins) {
+  Kokkos::parallel_for(mbins, KOKKOS_LAMBDA (const int&i) {
+    view(i) = i;
+  });
+}
+
 void Neighbor::binatoms(Atom &atom, int count)
 {
   const int nall = count<0?atom.nlocal + atom.nghost:count;
@@ -429,7 +436,8 @@ void Neighbor::binatoms(Atom &atom, int count)
   }
 
   Kokkos::deep_copy(bin_list,-1);
-  Kokkos::parallel_scan(Kokkos::RangePolicy<TagNeighborBinning>(0,mbins), *this);
+  //Kokkos::parallel_scan(Kokkos::RangePolicy<TagNeighborBinning>(0,mbins), *this);
+  fill_bins(bin_list,mbins);
 }
 
 
