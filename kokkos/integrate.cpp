@@ -153,13 +153,17 @@ void Integrate::run(Atom &atom, Force* force, Neighbor &neighbor,
 
         Kokkos::fence();
 
+	Kokkos::Profiling::pushRegion("neighbor::build");
         neighbor.build(atom);
+	Kokkos::Profiling::popRegion();
 
         timer.stamp(TIME_NEIGH);
       }
 
+      Kokkos::Profiling::pushRegion("force");
       force->evflag = (n + 1) % thermo.nstat == 0;
       force->compute(atom, neighbor, comm, comm.me);
+      Kokkos::Profiling::popRegion();
 
       timer.stamp(TIME_FORCE);
 
