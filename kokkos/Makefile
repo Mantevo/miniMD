@@ -20,7 +20,7 @@ ifeq ($(HAVE_MPI), yes)
 CXX = mpicxx
 else
 CXX = g++
-CXXFLAGS += -I./MPI-Stubs
+override CXXFLAGS += -I./MPI-Stubs
 LIB += MPI-Stubs/libmpi_stubs.a
 endif
 
@@ -32,7 +32,7 @@ EXE = miniMD
 
 #Check for single precision
 ifeq ($(SP), yes)
-CXXFLAGS += -DPRECISION=1 
+override CXXFLAGS += -DPRECISION=1 
 LINKFLAGS += -DPRECISION=1 
 else
 CXXFLAGS += -DPRECISION=2
@@ -41,33 +41,33 @@ endif
 
 #Check if debug on
 ifeq ($(DEBUG), yes)
-CXXFLAGS += -g -G 
+override CXXFLAGS += -g -G 
 LINKFLAGS += -g 
 endif
 
 
 #Use LIBRT for precision timers
 ifeq ($(LIBRT),yes)
-CXXFLAGS += -DPREC_TIMER
+override CXXFLAGS += -DPREC_TIMER
 KOKKOS_USE_TPL += ,librt
 endif
 
 #Check for PAD
 ifeq ($(PAD), 3)
-CXXFLAGS += -DPAD3 
+override CXXFLAGS += -DPAD3 
 endif
 ifeq ($(PAD), 4)
-CXXFLAGS += -DPAD4 
+override CXXFLAGS += -DPAD4 
 endif
 
 #Check for use of explicit SIMD pragma
 ifeq ($(SIMD), yes)
-CXXFLAGS += -DUSE_SIMD
+override CXXFLAGS += -DUSE_SIMD
 endif
 
 #Check for request of ANSI_ALIAS
 ifeq ($(ANSI_ALIAS), yes)
-CXXFLAGS += -ansi-alias 
+override CXXFLAGS += -ansi-alias 
 endif
 
 
