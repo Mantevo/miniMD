@@ -24,8 +24,6 @@ CXXFLAGS += -I./MPI-Stubs
 LIB += MPI-Stubs/libmpi_stubs.a
 endif
 
-CXXFLAGS += -DKOKKOSP_ENABLE_PROFILING
-
 LINK = ${CXX}
 EXE = miniMD
 
@@ -47,15 +45,6 @@ CXXFLAGS += -g -G
 LINKFLAGS += -g 
 endif
 
-# Check for KNC compile
-ifeq ($(KNC), yes)
-override KOKKOS_ARCH=KNC
-endif
-
-# Check for KNC compile
-ifeq ($(AVX), yes)
-override KOKKOS_ARCH=SNB
-endif
 
 #Use LIBRT for precision timers
 ifeq ($(LIBRT),yes)
@@ -82,30 +71,19 @@ CXXFLAGS += -ansi-alias
 endif
 
 
-ifeq ($(RED_PREC), yes)
-ifeq ($(KOKKOS_ARCH), KNC)
-CXXFLAGS += -fimf-precision=low -fimf-domain-exclusion=15 
-else
-CXXFLAGS += -mGLOB_default_function_attrs="use_approx_f64_divide=true"
-endif
-endif
-
-ifeq ($(GSUNROLL), yes)
-ifeq ($(KOKKOS_ARCH), KNC)
-CXXFLAGS += -mGLOB_default_function_attrs="gather_scatter_loop_unroll=7; use_gather_scatter_hint=on"
-endif
-endif
-
 default: all
 
+MAKEFILE_PATH := $(subst Makefile,,$(abspath $(lastword $(MAKEFILE_LIST))))
 include $(KOKKOS_PATH)/Makefile.kokkos
 
-SRC = $(wildcard *.cpp) 
-HEADERS = $(wildcard *.h)
+SRC = $(wildcard $(MAKEFILE_PATH)*.cpp)
+HEADERS = $(wildcard $(MAKEFILE_PATH)*.hpp)
+
+vpath %.cpp $(sort $(dir $(SRC)))
+$(warning "MakefilePath: $(MAKEFILE_PATH) SRC: $(SRC) HEADERS: $(HEADERS)")
 DEPFLAGS = -M
 
-OBJ = $(SRC:.cpp=.o)
-
+OBJ = $(notdir $(SRC:.cpp=.o))
 
 all: $(OBJ) $(KOKKOS_LINK_DEPENDS)
 	$(LINK) $(LINKFLAGS) $(EXTRA_PATH) $(OBJ) $(KOKKOS_LDFLAGS) $(KOKKOS_LIBS) $(LIB) -o $(EXE)
@@ -116,8 +94,8 @@ clean: kokkos-clean
 EXTRA_FLAGS = $(KOKKOS_CPPFLAGS) $(KOKKOS_CXXFLAGS)
 # Compilation rules
 
-%.o:%.cpp $(KOKKOS_CPP_DEPENDS) $(HEADERS)
-	$(CXX) $(CXXFLAGS) $(EXTRA_FLAGS) -c $<
+%.o:%.cpp
+	$(CXX) $(CXXFLAGS) $(EXTRA_FLAGS) -c $< -o $(notdir $@)
 
 
 # Test
