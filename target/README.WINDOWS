@@ -1,0 +1,24 @@
+Building under Windows
+
+You can compile and run miniMD under Windows. 
+One way to do this is using a unix like shell with compiler on Windows such as
+Cygwin or MinGW. Both compiling and running should work largely as under Linux.
+
+Here the alternative using the Microsoft Visual Studio tool chain is described.
+This has been tested under Windows 7 with VS 10 Express for the reference Version
+of miniMD.
+  
+Download and install Microsoft Visual Studio C++ Express and OpenMPI for Windows.
+Note that with Visual Studio C++ 10 Express you can only compile for 32 bit execution.
+Thus you need to download the 32 bit variant of OpenMPI. 
+During installation of OpenMPI let it modify your standard paths.
+
+Downloads can be found here: 
+http://www.microsoft.com/visualstudio/eng/products/visual-studio-overview
+and here:
+http://www.open-mpi.org/software/ompi/v1.6/
+
+Open the visual studio command prompt and go to the prior extracted miniMD folder. 
+In that folder run the 'build-win.bat'. If you did not install OpenMPI in the default place, you
+need to modify the 'build-win.bat' script accordingly. 
+
