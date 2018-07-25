@@ -46,7 +46,7 @@ Atom::Atom(int ntypes_)
   nmax = 0;
   copy_size = 0;
 
-  x = v = f = xold = x_copy = v_copy = NULL;
+  x = v = f = xold = x_copy = v_copy = f_private = NULL;
   type = type_copy = NULL;
   comm_size = 3;
   reverse_size = 3;
@@ -65,6 +65,10 @@ Atom::~Atom()
     destroy_2d_MMD_float_array(f);
     destroy_2d_MMD_float_array(xold);
     destroy_1d_int_array(type);
+    if (privatize)
+    {
+      destroy_2d_MMD_float_array(f_private);
+    }
   }
 }
 
@@ -80,6 +84,15 @@ void Atom::growarray()
 
   if(x == NULL || v == NULL || f == NULL || xold == NULL) {
     printf("ERROR: No memory for atoms\n");
+  }
+
+  if (privatize) {
+    int nthreads = threads->omp_num_threads;
+    f_private = (MMD_float*) realloc_2d_MMD_float_array(f_private, nthreads * nmax,
+                                                        PAD, PAD * nold * nthreads);
+    if (f_private == NULL) {
+      printf("ERROR: No memory for atoms\n");
+    }
   }
 }
 

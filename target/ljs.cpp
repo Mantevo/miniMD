@@ -83,6 +83,7 @@ int main(int argc, char** argv)
   int ghost_newton = 1;
   int sort = -1;
   int ntypes = 4;
+  int privatize = 0;            // 1: privatize force array; 0: use atomics
 
   for(int i = 0; i < argc; i++) {
     if((strcmp(argv[i], "-i") == 0) || (strcmp(argv[i], "--input_file") == 0)) {
@@ -207,6 +208,11 @@ int main(int argc, char** argv)
       continue;
     }
 
+    if((strcmp(argv[i], "-pr") == 0) || (strcmp(argv[i], "--privatize") == 0)) {
+      privatize = atoi(argv[++i]);
+      continue;
+    }
+
     if((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0)) {
       printf("\n-----------------------------------------------------------------------------------------------------------\n");
       printf("-------------" VARIANT_STRING "--------------------\n");
@@ -235,6 +241,7 @@ int main(int argc, char** argv)
       printf("\t-sse <sse_version>:           use explicit sse intrinsics (use miniMD-SSE variant)\n");
       printf("\t-gn / --ghost_newton <int>:   set usage of newtons third law for ghost atoms\n"
              "\t                                (only applicable with half neighborlists)\n");
+      printf("\t-pr / --privatize <int>:      privatize force array for each thread (default 0)\n");
       printf("\n  Simulation setup:\n");
       printf("\t-i / --input_file <string>:   set input file to be used (default: in.lj.miniMD)\n");
       printf("\t--ntypes <int>:               set number of atom types for simulation (default: 4)\n");
@@ -305,6 +312,7 @@ int main(int argc, char** argv)
   }
 
   neighbor.ghost_newton = ghost_newton;
+  atom.privatize = privatize;
 
   omp_set_num_threads(num_threads);
 
@@ -439,7 +447,8 @@ int main(int argc, char** argv)
     fprintf(stdout, "\t# Ghost Newton: %i\n", ghost_newton);
     fprintf(stdout, "\t# Use intrinsics: %i\n", force->use_sse);
     fprintf(stdout, "\t# Do safe exchange: %i\n", comm.do_safeexchange);
-    fprintf(stdout, "\t# Size of float: %i\n\n", (int) sizeof(MMD_float));
+    fprintf(stdout, "\t# Size of float: %i\n", (int) sizeof(MMD_float));
+    fprintf(stdout, "\t# Privatize forces: %i\n\n", (int) privatize);
   }
 
   comm.exchange(atom);

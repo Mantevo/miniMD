@@ -96,6 +96,9 @@ class Atom
 
     void sort(Neighbor & neighbor);
 
+    int privatize;
+    MMD_float* f_private;
+
   private:
     int* binpos;
     int* bins;

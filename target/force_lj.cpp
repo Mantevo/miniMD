@@ -80,14 +80,20 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 
     if(neighbor.halfneigh) {
       if(neighbor.ghost_newton) {
-        if(threads->omp_num_threads > 1)
-          return compute_halfneigh_threaded<1, 1>(atom, neighbor, me);
-        else
+        if(threads->omp_num_threads > 1) {
+          if(atom.privatize)
+            return compute_halfneigh_threaded_private<1, 1>(atom, neighbor, me);
+          else
+            return compute_halfneigh_threaded<1, 1>(atom, neighbor, me);
+        } else
           return compute_halfneigh<1, 1>(atom, neighbor, me);
       } else {
-        if(threads->omp_num_threads > 1)
-          return compute_halfneigh_threaded<1, 0>(atom, neighbor, me);
-        else
+        if(threads->omp_num_threads > 1) {
+          if(atom.privatize)
+            return compute_halfneigh_threaded_private<1, 0>(atom, neighbor, me);
+          else
+            return compute_halfneigh_threaded<1, 0>(atom, neighbor, me);
+        } else
           return compute_halfneigh<1, 0>(atom, neighbor, me);
       }
     } else return compute_fullneigh<1>(atom, neighbor, me);
@@ -97,14 +103,20 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 
     if(neighbor.halfneigh) {
       if(neighbor.ghost_newton) {
-        if(threads->omp_num_threads > 1)
-          return compute_halfneigh_threaded<0, 1>(atom, neighbor, me);
-        else
+        if(threads->omp_num_threads > 1) {
+          if(atom.privatize)
+            return compute_halfneigh_threaded_private<0, 1>(atom, neighbor, me);
+          else
+            return compute_halfneigh_threaded<0, 1>(atom, neighbor, me);
+        } else
           return compute_halfneigh<0, 1>(atom, neighbor, me);
       } else {
-        if(threads->omp_num_threads > 1)
-          return compute_halfneigh_threaded<0, 0>(atom, neighbor, me);
-        else
+        if(threads->omp_num_threads > 1) {
+          if(atom.privatize)
+            return compute_halfneigh_threaded_private<0, 0>(atom, neighbor, me);
+          else
+            return compute_halfneigh_threaded<0, 0>(atom, neighbor, me);
+        } else
           return compute_halfneigh<0, 0>(atom, neighbor, me);
       }
     } else return compute_fullneigh<0>(atom, neighbor, me);
@@ -346,6 +358,121 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     f[i * PAD + 1] += fiy;
     #pragma omp atomic
     f[i * PAD + 2] += fiz;
+  }
+
+  #pragma omp atomic
+  eng_vdwl += t_eng_vdwl;
+  #pragma omp atomic
+  virial += t_virial;
+
+  #pragma omp barrier
+}
+
+//optimised version of compute
+//  -MPI + OpenMP (privatization for fj update)
+//  -use temporary variable for summing up fi
+//  -enables vectorization by:
+//    -getting rid of 2d pointers
+//    -use pragma omp simd to force vectorization of inner loop
+//    -use private force arrays for each thread
+template<int EVFLAG, int GHOST_NEWTON>
+void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, int me)
+{
+  MMD_float t_eng_vdwl = 0;
+  MMD_float t_virial = 0;
+
+  const int tid = omp_get_thread_num();
+  const int nthreads = threads->omp_num_threads;
+
+  const int nlocal = atom.nlocal;
+  const int nall = atom.nlocal + atom.nghost;
+  const MMD_float* const x = atom.x;
+  MMD_float* const f = &atom.f_private[tid * nall * PAD];
+  const int* const type = atom.type;
+
+  #pragma omp barrier
+
+  // clear force on own and ghost atoms (in private copy)
+
+  for(int i = 0; i < nall; i++) {
+    f[i * PAD + 0] = 0.0;
+    f[i * PAD + 1] = 0.0;
+    f[i * PAD + 2] = 0.0;
+  }
+
+  // loop over all neighbors of my atoms
+  // store force on both atoms i and j
+
+  OMPFORSCHEDULE
+  for(int i = 0; i < nlocal; i++) {
+    const int* const neighs = &neighbor.neighbors[i * neighbor.maxneighs];
+    const int numneighs = neighbor.numneigh[i];
+    const MMD_float xtmp = x[i * PAD + 0];
+    const MMD_float ytmp = x[i * PAD + 1];
+    const MMD_float ztmp = x[i * PAD + 2];
+    const int type_i = type[i];
+    MMD_float fix = 0.0;
+    MMD_float fiy = 0.0;
+    MMD_float fiz = 0.0;
+
+#ifdef USE_SIMD
+    #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
+#endif
+    for(int k = 0; k < numneighs; k++) {
+      const int j = neighs[k];
+      const MMD_float delx = xtmp - x[j * PAD + 0];
+      const MMD_float dely = ytmp - x[j * PAD + 1];
+      const MMD_float delz = ztmp - x[j * PAD + 2];
+      const int type_j = type[j];
+      const MMD_float rsq = delx * delx + dely * dely + delz * delz;
+      const int type_ij = type_i*ntypes+type_j;
+
+      if(rsq < cutforcesq[type_ij]) {
+        const MMD_float sr2 = 1.0 / rsq;
+        const MMD_float sr6 = sr2 * sr2 * sr2 * sigma6[type_ij];
+        const MMD_float force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon[type_ij];
+
+        fix += delx * force;
+        fiy += dely * force;
+        fiz += delz * force;
+
+        if(GHOST_NEWTON || j < nlocal) {
+          f[j * PAD + 0] -= delx * force;
+          f[j * PAD + 1] -= dely * force;
+          f[j * PAD + 2] -= delz * force;
+        }
+
+        if(EVFLAG) {
+          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? 1.0 : 0.5;
+          t_eng_vdwl += scale * (4.0 * sr6 * (sr6 - 1.0)) * epsilon[type_ij];
+          t_virial += scale * (delx * delx + dely * dely + delz * delz) * force;
+        }
+      }
+    }
+
+    f[i * PAD + 0] += fix;
+    f[i * PAD + 1] += fiy;
+    f[i * PAD + 2] += fiz;
+  }
+
+  #pragma omp barrier
+
+  // reduce private copies
+  // likely sub-optimal: makes no assumptions about which threads touch which atoms
+
+  OMPFORSCHEDULE
+  for (int i = 0; i < nall; i++) {
+    MMD_float fix = 0.0;
+    MMD_float fiy = 0.0;
+    MMD_float fiz = 0.0;
+    for (int t = 0; t < nthreads; t++) {
+      fix += atom.f_private[t * nall * PAD + i * PAD + 0];
+      fiy += atom.f_private[t * nall * PAD + i * PAD + 1];
+      fiz += atom.f_private[t * nall * PAD + i * PAD + 2];
+    }
+    atom.f[i * PAD + 0] = fix;
+    atom.f[i * PAD + 1] = fiy;
+    atom.f[i * PAD + 2] = fiz;
   }
 
   #pragma omp atomic

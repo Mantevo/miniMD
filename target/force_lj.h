@@ -55,6 +55,8 @@ class ForceLJ : Force
     void compute_halfneigh(Atom &, Neighbor &, int);
     template<int EVFLAG, int GHOST_NEWTON>
     void compute_halfneigh_threaded(Atom &, Neighbor &, int);
+    template<int EVFLAG, int GHOST_NEWTON>
+    void compute_halfneigh_threaded_private(Atom &, Neighbor &, int);
 
     template<int EVFLAG>
     void compute_fullneigh(Atom &, Neighbor &, int);
