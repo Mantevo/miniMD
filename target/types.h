@@ -74,10 +74,8 @@ typedef int MMD_int;
 typedef int MMD_bigint;
 
 
-#ifndef PAD4
+#ifndef PAD
 #define PAD 3
-#else
-#define PAD 4
 #endif
 
 #ifdef __INTEL_COMPILER
