@@ -228,6 +228,7 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
     MMD_float fiz = 0.0;
 
 #ifdef USE_SIMD
+    #pragma vector unaligned
     #pragma omp simd reduction (+: fix,fiy,fiz)
 #endif
     for(int k = 0; k < numneighs; k++) {
@@ -318,6 +319,7 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     MMD_float fiz = 0.0;
 
 #ifdef USE_SIMD
+    #pragma vector unaligned
     #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
 #endif
     for(int k = 0; k < numneighs; k++) {
@@ -419,6 +421,7 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
     MMD_float fiz = 0.0;
 
 #ifdef USE_SIMD
+    #pragma vector unaligned
     #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
 #endif
     for(int k = 0; k < numneighs; k++) {
@@ -535,6 +538,7 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
     //give hint to compiler that fix, fiy and fiz are used for reduction only
 
 #ifdef USE_SIMD
+    #pragma vector unaligned
     #pragma omp simd reduction (+: fix,fiy,fiz,t_eng_vdwl,t_virial)
 #endif
     for(int k = 0; k < numneighs; k++) {
