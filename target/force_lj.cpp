@@ -373,6 +373,59 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   #pragma omp barrier
 }
 
+//#define USE_SCATTER_VARIANT
+__declspec(noinline)
+void private_force_update(MMD_float* f, const int32_t j, const MMD_float x, const MMD_float y, const MMD_float z)
+{
+  f[j * PAD + 0] -= x;
+  f[j * PAD + 1] -= y;
+  f[j * PAD + 2] -= z;
+}
+
+#if (PAD == 4)
+#include <immintrin.h>
+__declspec(vector_variant(implements(private_force_update(MMD_float* f, const int32_t j, const MMD_float x, const MMD_float y, const MMD_float z)),
+                          uniform(f),
+                          vectorlength(16),
+                          mask,
+                          processor(knl)))
+void _mm512_private_force_update_ps(MMD_float* f, const __m512i j, const __m512 x, const __m512 y, const __m512 z, __mmask16 mask)
+{
+  // respect the mask
+  __m512 mx = _mm512_mask_blend_ps(mask, _mm512_setzero_ps(), x);
+  __m512 my = _mm512_mask_blend_ps(mask, _mm512_setzero_ps(), y);
+  __m512 mz = _mm512_mask_blend_ps(mask, _mm512_setzero_ps(), z);
+
+  // transpose 3x16 => 16x4 (w/ undefined padding)
+  __m512 out[4];
+  __m512 xy1256 = _mm512_shuffle_ps(mx, my,                    _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 xy3478 = _mm512_shuffle_ps(mx, my,                    _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 z01256 = _mm512_shuffle_ps(mz, _mm512_undefined_ps(), _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 z03478 = _mm512_shuffle_ps(mz, _mm512_undefined_ps(), _MM_SHUFFLE(3, 2, 3, 2));
+  out[0] = _mm512_shuffle_ps(xy1256, z01256, _MM_SHUFFLE(2, 0, 2, 0));
+  out[1] = _mm512_shuffle_ps(xy1256, z01256, _MM_SHUFFLE(3, 1, 3, 1));
+  out[2] = _mm512_shuffle_ps(xy3478, z03478, _MM_SHUFFLE(2, 0, 2, 0));
+  out[3] = _mm512_shuffle_ps(xy3478, z03478, _MM_SHUFFLE(3, 1, 3, 1));
+
+  // gather/add/scatter the atoms in groups of 4
+  __declspec(aligned(64)) int32_t js[16];
+  _mm512_store_epi32(js, _mm512_mullo_epi32(j, _mm512_set1_epi32(4)));
+  for (int g = 0; g < 4; ++g)
+  {
+    __m512 fj;
+    fj = _mm512_castps128_ps512(                 _mm_load_ps(f + js[g +  0]));
+    fj = _mm512_mask_broadcast_f32x4(fj, 0x00F0, _mm_load_ps(f + js[g +  4]));
+    fj = _mm512_mask_broadcast_f32x4(fj, 0x0F00, _mm_load_ps(f + js[g +  8]));
+    fj = _mm512_mask_broadcast_f32x4(fj, 0xF000, _mm_load_ps(f + js[g + 12]));
+    fj = _mm512_sub_ps(fj, out[g]);
+    _mm512_mask_compressstoreu_ps(f + js[g +  0], 0x000F, fj);
+    _mm512_mask_compressstoreu_ps(f + js[g +  4], 0x00F0, fj);
+    _mm512_mask_compressstoreu_ps(f + js[g +  8], 0x0F00, fj);
+    _mm512_mask_compressstoreu_ps(f + js[g + 12], 0xF000, fj);
+  }
+}
+#endif
+
 //optimised version of compute
 //  -MPI + OpenMP (privatization for fj update)
 //  -use temporary variable for summing up fi
@@ -431,11 +484,17 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
         fiy += dely * force;
         fiz += delz * force;
 
+#ifndef USE_SCATTER_VARIANT
         if(GHOST_NEWTON || j < nlocal) {
           f[j * PAD + 0] -= delx * force;
           f[j * PAD + 1] -= dely * force;
           f[j * PAD + 2] -= delz * force;
         }
+#else
+        if(GHOST_NEWTON || j < nlocal) {
+          private_force_update(f, j, delx * force, dely * force, delz * force);
+        }
+#endif
 
         if(EVFLAG) {
           const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
