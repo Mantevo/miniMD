@@ -92,3 +92,7 @@ typedef int MMD_bigint;
 #define RESTRICT
 #endif
 #endif
+
+#ifndef CACHELINE_SIZE
+#define CACHELINE_SIZE 64
+#endif

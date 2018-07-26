@@ -452,23 +452,27 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
 
   // reduce private copies and clear them for the next timestep
   // likely sub-optimal: makes no assumptions about which threads touch which atoms
+  // iterates through array(s) in cache-line-sized chunks
 
+  MMD_float* reduction_out = (MMD_float*) atom.f;
   OMPFORSCHEDULE
-  for (int i = 0; i < nall; i++) {
-    MMD_float fix = MMD_float(0.0);
-    MMD_float fiy = MMD_float(0.0);
-    MMD_float fiz = MMD_float(0.0);
-    for (int t = 0; t < nthreads; t++) {
-      fix += atom.f_private[t * nall * PAD + i * PAD + 0];
-      fiy += atom.f_private[t * nall * PAD + i * PAD + 1];
-      fiz += atom.f_private[t * nall * PAD + i * PAD + 2];
-      atom.f_private[t * nall * PAD + i * PAD + 0] = MMD_float(0.0);
-      atom.f_private[t * nall * PAD + i * PAD + 1] = MMD_float(0.0);
-      atom.f_private[t * nall * PAD + i * PAD + 2] = MMD_float(0.0);
+  for (int chunk_offset = 0; chunk_offset < nall * PAD; chunk_offset += CACHELINE_SIZE/sizeof(MMD_float))
+  {
+    // don't worry about the last chunk; arrays are padded at the end
+    #pragma vector aligned
+    #pragma omp simd
+    for (int c = 0; c < CACHELINE_SIZE/sizeof(MMD_float); ++c)
+    {
+      MMD_float* reduction_in = (MMD_float*) &atom.f_private[chunk_offset + c];
+      MMD_float tmp = MMD_float(0.0);
+      #pragma unroll(2)
+      for (int t = 0; t < nthreads; ++t)
+      {
+        tmp += reduction_in[t * nall * PAD];
+        reduction_in[t * nall * PAD] = MMD_float(0.0);
+      }
+      reduction_out[chunk_offset + c] = tmp;
     }
-    atom.f[i * PAD + 0] = fix;
-    atom.f[i * PAD + 1] = fiy;
-    atom.f[i * PAD + 2] = fiz;
   }
 
   #pragma omp atomic
