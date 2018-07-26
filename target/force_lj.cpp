@@ -141,9 +141,9 @@ void ForceLJ::compute_original(Atom &atom, Neighbor &neighbor, int me)
   // clear force on own and ghost atoms
 
   for(int i = 0; i < nall; i++) {
-    f[i * PAD + 0] = 0.0;
-    f[i * PAD + 1] = 0.0;
-    f[i * PAD + 2] = 0.0;
+    f[i * PAD + 0] = MMD_float(0.0);
+    f[i * PAD + 1] = MMD_float(0.0);
+    f[i * PAD + 2] = MMD_float(0.0);
   }
 
   // loop over all neighbors of my atoms
@@ -168,9 +168,9 @@ void ForceLJ::compute_original(Atom &atom, Neighbor &neighbor, int me)
       const int type_ij = type_i*ntypes+type_j;
 
       if(rsq < cutforcesq[type_ij]) {
-        const MMD_float sr2 = 1.0 / rsq;
+        const MMD_float sr2 = MMD_float(1.0) / rsq;
         const MMD_float sr6 = sr2 * sr2 * sr2 * sigma6[type_ij];
-        const MMD_float force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon[type_ij];
+        const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
         f[i * PAD + 0] += delx * force;
         f[i * PAD + 1] += dely * force;
         f[i * PAD + 2] += delz * force;
@@ -179,7 +179,7 @@ void ForceLJ::compute_original(Atom &atom, Neighbor &neighbor, int me)
         f[j * PAD + 2] -= delz * force;
 
         if(EVFLAG) {
-          eng_vdwl += (4.0 * sr6 * (sr6 - 1.0)) * epsilon[type_ij];
+          eng_vdwl += (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
           virial += (delx * delx + dely * dely + delz * delz) * force;
         }
       }
@@ -205,9 +205,9 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
 
   // clear force on own and ghost atoms
   for(int i = 0; i < nall; i++) {
-    f[i * PAD + 0] = 0.0;
-    f[i * PAD + 1] = 0.0;
-    f[i * PAD + 2] = 0.0;
+    f[i * PAD + 0] = MMD_float(0.0);
+    f[i * PAD + 1] = MMD_float(0.0);
+    f[i * PAD + 2] = MMD_float(0.0);
   }
 
   // loop over all neighbors of my atoms
@@ -223,9 +223,9 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
     const MMD_float ztmp = x[i * PAD + 2];
     const int type_i = type[i];
 
-    MMD_float fix = 0.0;
-    MMD_float fiy = 0.0;
-    MMD_float fiz = 0.0;
+    MMD_float fix = MMD_float(0.0);
+    MMD_float fiy = MMD_float(0.0);
+    MMD_float fiz = MMD_float(0.0);
 
 #ifdef USE_SIMD
     #pragma vector unaligned
@@ -241,9 +241,9 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
       const int type_ij = type_i*ntypes+type_j;
 
       if(rsq < cutforcesq[type_ij]) {
-        const MMD_float sr2 = 1.0 / rsq;
+        const MMD_float sr2 = MMD_float(1.0) / rsq;
         const MMD_float sr6 = sr2 * sr2 * sr2 * sigma6[type_ij];
-        const MMD_float force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon[type_ij];
+        const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
 
         fix += delx * force;
         fiy += dely * force;
@@ -256,8 +256,8 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
         }
 
         if(EVFLAG) {
-          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? 1.0 : 0.5;
-          t_energy += scale * (4.0 * sr6 * (sr6 - 1.0)) * epsilon[type_ij];
+          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
+          t_energy += scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
           t_virial += scale * (delx * delx + dely * dely + delz * delz) * force;
         }
 
@@ -298,9 +298,9 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 
   OMPFORSCHEDULE
   for(int i = 0; i < nall; i++) {
-    f[i * PAD + 0] = 0.0;
-    f[i * PAD + 1] = 0.0;
-    f[i * PAD + 2] = 0.0;
+    f[i * PAD + 0] = MMD_float(0.0);
+    f[i * PAD + 1] = MMD_float(0.0);
+    f[i * PAD + 2] = MMD_float(0.0);
   }
 
   // loop over all neighbors of my atoms
@@ -314,9 +314,9 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     const MMD_float ytmp = x[i * PAD + 1];
     const MMD_float ztmp = x[i * PAD + 2];
     const int type_i = type[i];
-    MMD_float fix = 0.0;
-    MMD_float fiy = 0.0;
-    MMD_float fiz = 0.0;
+    MMD_float fix = MMD_float(0.0);
+    MMD_float fiy = MMD_float(0.0);
+    MMD_float fiz = MMD_float(0.0);
 
 #ifdef USE_SIMD
     #pragma vector unaligned
@@ -332,9 +332,9 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
       const int type_ij = type_i*ntypes+type_j;
 
       if(rsq < cutforcesq[type_ij]) {
-        const MMD_float sr2 = 1.0 / rsq;
+        const MMD_float sr2 = MMD_float(1.0) / rsq;
         const MMD_float sr6 = sr2 * sr2 * sr2 * sigma6[type_ij];
-        const MMD_float force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon[type_ij];
+        const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
 
         fix += delx * force;
         fiy += dely * force;
@@ -350,8 +350,8 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
         }
 
         if(EVFLAG) {
-          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? 1.0 : 0.5;
-          t_eng_vdwl += scale * (4.0 * sr6 * (sr6 - 1.0)) * epsilon[type_ij];
+          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
+          t_eng_vdwl += scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
           t_virial += scale * (delx * delx + dely * dely + delz * delz) * force;
         }
       }
@@ -400,9 +400,9 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
   // clear force on own and ghost atoms (in private copy)
 
   for(int i = 0; i < nall; i++) {
-    f[i * PAD + 0] = 0.0;
-    f[i * PAD + 1] = 0.0;
-    f[i * PAD + 2] = 0.0;
+    f[i * PAD + 0] = MMD_float(0.0);
+    f[i * PAD + 1] = MMD_float(0.0);
+    f[i * PAD + 2] = MMD_float(0.0);
   }
 
   // loop over all neighbors of my atoms
@@ -416,9 +416,9 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
     const MMD_float ytmp = x[i * PAD + 1];
     const MMD_float ztmp = x[i * PAD + 2];
     const int type_i = type[i];
-    MMD_float fix = 0.0;
-    MMD_float fiy = 0.0;
-    MMD_float fiz = 0.0;
+    MMD_float fix = MMD_float(0.0);
+    MMD_float fiy = MMD_float(0.0);
+    MMD_float fiz = MMD_float(0.0);
 
 #ifdef USE_SIMD
     #pragma vector unaligned
@@ -434,9 +434,9 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
       const int type_ij = type_i*ntypes+type_j;
 
       if(rsq < cutforcesq[type_ij]) {
-        const MMD_float sr2 = 1.0 / rsq;
+        const MMD_float sr2 = MMD_float(1.0) / rsq;
         const MMD_float sr6 = sr2 * sr2 * sr2 * sigma6[type_ij];
-        const MMD_float force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon[type_ij];
+        const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
 
         fix += delx * force;
         fiy += dely * force;
@@ -449,8 +449,8 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
         }
 
         if(EVFLAG) {
-          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? 1.0 : 0.5;
-          t_eng_vdwl += scale * (4.0 * sr6 * (sr6 - 1.0)) * epsilon[type_ij];
+          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
+          t_eng_vdwl += scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
           t_virial += scale * (delx * delx + dely * dely + delz * delz) * force;
         }
       }
@@ -468,9 +468,9 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
 
   OMPFORSCHEDULE
   for (int i = 0; i < nall; i++) {
-    MMD_float fix = 0.0;
-    MMD_float fiy = 0.0;
-    MMD_float fiz = 0.0;
+    MMD_float fix = MMD_float(0.0);
+    MMD_float fiy = MMD_float(0.0);
+    MMD_float fiz = MMD_float(0.0);
     for (int t = 0; t < nthreads; t++) {
       fix += atom.f_private[t * nall * PAD + i * PAD + 0];
       fiy += atom.f_private[t * nall * PAD + i * PAD + 1];
@@ -513,9 +513,9 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
 
   OMPFORSCHEDULE
   for(int i = 0; i < nlocal; i++) {
-    f[i * PAD + 0] = 0.0;
-    f[i * PAD + 1] = 0.0;
-    f[i * PAD + 2] = 0.0;
+    f[i * PAD + 0] = MMD_float(0.0);
+    f[i * PAD + 1] = MMD_float(0.0);
+    f[i * PAD + 2] = MMD_float(0.0);
   }
 
   // loop over all neighbors of my atoms
@@ -529,9 +529,9 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
     const MMD_float ytmp = x[i * PAD + 1];
     const MMD_float ztmp = x[i * PAD + 2];
     const int type_i = type[i];
-    MMD_float fix = 0;
-    MMD_float fiy = 0;
-    MMD_float fiz = 0;
+    MMD_float fix = MMD_float(0.0);
+    MMD_float fiy = MMD_float(0.0);
+    MMD_float fiz = MMD_float(0.0);
 
     //pragma omp simd forces vectorization (ignoring the performance objections of the compiler)
     //also give hint to use certain vectorlength for MIC, Sandy Bridge and WESTMERE this should be be 8 here
@@ -551,15 +551,15 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
 
       int type_ij = type_i*ntypes+type_j;
       if(rsq < cutforcesq[type_ij]) {
-        const MMD_float sr2 = 1.0 / rsq;
+        const MMD_float sr2 = MMD_float(1.0) / rsq;
         const MMD_float sr6 = sr2 * sr2 * sr2 * sigma6[type_ij];
-        const MMD_float force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon[type_ij];
+        const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
         fix += delx * force;
         fiy += dely * force;
         fiz += delz * force;
 
         if(EVFLAG) {
-          t_eng_vdwl += sr6 * (sr6 - 1.0) * epsilon[type_ij];
+          t_eng_vdwl += sr6 * (sr6 - MMD_float(1.0)) * epsilon[type_ij];
           t_virial += (delx * delx + dely * dely + delz * delz) * force;
         }
       }
@@ -572,8 +572,8 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
 
   }
 
-  t_eng_vdwl *= 4.0;
-  t_virial *= 0.5;
+  t_eng_vdwl *= MMD_float(4.0);
+  t_virial *= MMD_float(0.5);
 
   #pragma omp atomic
   eng_vdwl += t_eng_vdwl;
