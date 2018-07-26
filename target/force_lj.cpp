@@ -317,6 +317,9 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     MMD_float fiy = 0.0;
     MMD_float fiz = 0.0;
 
+#ifdef USE_SIMD
+    #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
+#endif
     for(int k = 0; k < numneighs; k++) {
       const int j = neighs[k];
       const MMD_float delx = xtmp - x[j * PAD + 0];
