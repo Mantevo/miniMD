@@ -450,8 +450,6 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
     f[i * PAD + 2] += fiz;
   }
 
-  #pragma omp barrier
-
   // reduce private copies and clear them for the next timestep
   // likely sub-optimal: makes no assumptions about which threads touch which atoms
 
