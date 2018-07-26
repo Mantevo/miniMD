@@ -397,17 +397,6 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
 
   #pragma omp barrier
 
-  // clear force on own and ghost atoms (in private copy)
-
-  for(int i = 0; i < nall; i++) {
-    f[i * PAD + 0] = MMD_float(0.0);
-    f[i * PAD + 1] = MMD_float(0.0);
-    f[i * PAD + 2] = MMD_float(0.0);
-  }
-
-  // loop over all neighbors of my atoms
-  // store force on both atoms i and j
-
   OMPFORSCHEDULE
   for(int i = 0; i < nlocal; i++) {
     const int* const neighs = &neighbor.neighbors[i * neighbor.maxneighs];
@@ -463,7 +452,7 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
 
   #pragma omp barrier
 
-  // reduce private copies
+  // reduce private copies and clear them for the next timestep
   // likely sub-optimal: makes no assumptions about which threads touch which atoms
 
   OMPFORSCHEDULE
@@ -475,6 +464,9 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
       fix += atom.f_private[t * nall * PAD + i * PAD + 0];
       fiy += atom.f_private[t * nall * PAD + i * PAD + 1];
       fiz += atom.f_private[t * nall * PAD + i * PAD + 2];
+      atom.f_private[t * nall * PAD + i * PAD + 0] = MMD_float(0.0);
+      atom.f_private[t * nall * PAD + i * PAD + 1] = MMD_float(0.0);
+      atom.f_private[t * nall * PAD + i * PAD + 2] = MMD_float(0.0);
     }
     atom.f[i * PAD + 0] = fix;
     atom.f[i * PAD + 1] = fiy;
