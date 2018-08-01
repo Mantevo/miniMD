@@ -171,6 +171,11 @@ int main(int argc, char** argv)
       continue;
     }
 
+    if((strcmp(argv[i], "--safe_exchange") == 0))  {
+      do_safeexchange = 1;
+      continue;
+    }
+
     if((strcmp(argv[i], "--sort") == 0))  {
       sort = atoi(argv[++i]);
       continue;
