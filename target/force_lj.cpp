@@ -398,6 +398,7 @@ void _mm512_private_force_update_ps(MMD_float* f, const __m512i j, const __m512 
 
   // transpose 3x16 => 16x4 (w/ undefined padding)
   __m512 out[4];
+#if 0
   __m512 xy1256 = _mm512_shuffle_ps(mx, my,                    _MM_SHUFFLE(1, 0, 1, 0));
   __m512 xy3478 = _mm512_shuffle_ps(mx, my,                    _MM_SHUFFLE(3, 2, 3, 2));
   __m512 z01256 = _mm512_shuffle_ps(mz, _mm512_undefined_ps(), _MM_SHUFFLE(1, 0, 1, 0));
@@ -406,6 +407,16 @@ void _mm512_private_force_update_ps(MMD_float* f, const __m512i j, const __m512 
   out[1] = _mm512_shuffle_ps(xy1256, z01256, _MM_SHUFFLE(3, 1, 3, 1));
   out[2] = _mm512_shuffle_ps(xy3478, z03478, _MM_SHUFFLE(2, 0, 2, 0));
   out[3] = _mm512_shuffle_ps(xy3478, z03478, _MM_SHUFFLE(3, 1, 3, 1));
+#else
+  __m512 xy1256 = _mm512_unpacklo_ps(mx, my);
+  __m512 xy3478 = _mm512_unpackhi_ps(mx, my);
+  __m512 z01256 = _mm512_unpacklo_ps(mz, _mm512_undefined_ps());
+  __m512 z03478 = _mm512_unpackhi_ps(mz, _mm512_undefined_ps());
+  out[0] = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xy1256), _mm512_castps_pd(z01256)));
+  out[1] = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xy1256), _mm512_castps_pd(z01256)));
+  out[2] = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xy3478), _mm512_castps_pd(z03478)));
+  out[3] = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xy3478), _mm512_castps_pd(z03478)));
+#endif
 
   // gather/add/scatter the atoms in groups of 4
   __declspec(aligned(64)) int32_t js[16];
