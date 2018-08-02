@@ -88,17 +88,12 @@ class Comm
     Timer* timer;
 
     int copy_size;
-    int* nsend_thread;
-    int* nrecv_thread;
-    int* nholes_thread;
-    int** exc_sendlist_thread;
     int* send_flag;
-    int* maxsend_thread;
-    int maxthreads;
     int maxnlocal;
     int nrecv_atoms;
 
     int* exc_sendlist;
+    int* exc_copylist;
     int maxexc;
 };
 

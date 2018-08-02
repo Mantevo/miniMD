@@ -49,10 +49,10 @@ Comm::Comm()
   buf_recv = (MMD_float*) malloc(maxrecv * sizeof(MMD_float));
   check_safeexchange = 0;
   do_safeexchange = 0;
-  maxthreads = 0;
   maxnlocal = 0;
   maxexc = maxsend;
   exc_sendlist = (int*) malloc(maxexc * sizeof(int));
+  exc_copylist = (int*) malloc(maxexc * sizeof(int));
 }
 
 Comm::~Comm() {}
@@ -371,10 +371,12 @@ void Comm::reverse_communicate(Atom &atom)
 
 void Comm::exchange(Atom &atom)
 {
-  if(do_safeexchange)
+  if (do_safeexchange)
+  {
     return exchange_all(atom);
+  }
 
-  int i, m, n, idim, nsend, nrecv, nrecv1, nrecv2, nlocal;
+  int m, n, nsend, nrecv, nrecv1, nrecv2, nlocal;
   MMD_float lo, hi, value;
   MMD_float* x;
 
@@ -386,9 +388,8 @@ void Comm::exchange(Atom &atom)
   atom.pbc();
 
   /* loop over dimensions */
-  int tid = omp_get_thread_num();
 
-  for(idim = 0; idim < 3; idim++) {
+  for(int idim = 0; idim < 3; idim++) {
 
     /* only exchange if more than one proc in this dimension */
 
@@ -396,8 +397,6 @@ void Comm::exchange(Atom &atom)
 
     /* fill buffer with atoms leaving my box
        when atom is deleted, fill it in with last atom */
-
-    i = nsend = 0;
 
     if(idim == 0) {
       lo = atom.box.xlo;
@@ -414,208 +413,158 @@ void Comm::exchange(Atom &atom)
 
     nlocal = atom.nlocal;
 
-    #pragma omp master
-    {
-      if(nlocal > maxnlocal) {
-        send_flag = new int[nlocal];
-        maxnlocal = nlocal;
-      }
-
-      if(maxthreads < threads->omp_num_threads) {
-        maxthreads = threads->omp_num_threads;
-        nsend_thread = new int [maxthreads];
-        nrecv_thread = new int [maxthreads];
-        nholes_thread = new int [maxthreads];
-        maxsend_thread = new int [maxthreads];
-        exc_sendlist_thread = new int*[maxthreads];
-
-        for(int i = 0; i < maxthreads; i++) {
-          maxsend_thread[i] = maxsend;
-          exc_sendlist_thread[i] = (int*) malloc(maxsend * sizeof(int));
-        }
-      }
+    if(nlocal > maxnlocal) {
+      send_flag = new int[nlocal];
+      maxnlocal = nlocal;
     }
 
-    #pragma omp barrier
-
+    // count the number of atoms to exchange
     nsend = 0;
-    #pragma omp for
-
-    for(int i = 0; i < threads->omp_num_threads; i++) {
-      nsend_thread[i] = 0;
-      nholes_thread[i] = 0;
+    #pragma omp parallel for reduction(+:nsend)
+    for (int i = 0; i < nlocal; ++i)
+    {
+      if (x[i * PAD + idim] < lo || x[i * PAD + idim] >= hi)
+      {
+        nsend++;
+      }
     }
 
-    #pragma omp for
-    for(int i = 0; i < nlocal; i++) {
-      if(x[i * PAD + idim] < lo || x[i * PAD + idim] >= hi) {
-        if(nsend >= maxsend_thread[tid])  {
-          maxsend_thread[tid] = nsend + 100;
-          exc_sendlist_thread[tid] = (int*) realloc(exc_sendlist_thread[tid], (nsend + 100) * sizeof(int));
-        }
+    // ensure there's enough space for the lists
+    if (nsend > maxexc)
+    {
+      maxexc = nsend + 100;
+      exc_sendlist = (int*) realloc(exc_sendlist, maxexc * sizeof(int));
+      exc_copylist = (int*) realloc(exc_copylist, maxexc * sizeof(int));
+    }
+    if (nsend * 7 > maxsend) growsend(nsend * 7);
 
-        exc_sendlist_thread[tid][nsend++] = i;
+    // build the sendlist
+    #pragma omp parallel for
+    for (int i = 0; i < nlocal; ++i)
+    {
+      if (x[i * PAD + idim] < lo || x[i * PAD + idim] >= hi)
+      {
+        int k;
+        #pragma omp atomic capture
+        k = nsend++;
+        exc_sendlist[k] = i;
         send_flag[i] = 0;
-      } else
+      }
+      else
+      {
         send_flag[i] = 1;
+      }
     }
 
-    nsend_thread[tid] = nsend;
-
-    #pragma omp barrier
-
-    #pragma omp master
+    // build the copylist
+    int sendpos = nlocal-1;
+    nlocal -= nsend;
+    for (int i = 0; i < nsend; ++i)
     {
-      int total_nsend = 0;
-
-      for(int i = 0; i < threads->omp_num_threads; i++) {
-        total_nsend += nsend_thread[i];
-        nsend_thread[i] = total_nsend;
+      if (exc_sendlist[i] < nlocal)
+      {
+        while (send_flag[sendpos]) sendpos--;
+        exc_copylist[i] = sendpos;
+        sendpos--;
       }
-
-      if(total_nsend * 7 > maxsend) growsend(total_nsend * 7);
+      else
+      {
+        exc_copylist[i] = -1;
+      }
     }
 
-    #pragma omp barrier
-
-    int total_nsend = nsend_thread[threads->omp_num_threads - 1];
-    int nholes = 0;
-
-    for(int i = 0; i < nsend; i++)
-      if(exc_sendlist_thread[tid][i] < nlocal - total_nsend)
-        nholes++;
-
-    nholes_thread[tid] = nholes;
-    #pragma omp barrier
-
-    #pragma omp master
+    // pack the atoms into the send buffer
+    #pragma omp parallel for
+    for (int i = 0; i < nsend; ++i)
     {
-      int total_nholes = 0;
-
-      for(int i = 0; i < threads->omp_num_threads; i++) {
-        total_nholes += nholes_thread[i];
-        nholes_thread[i] = total_nholes;
-      }
-    }
-    #pragma omp barrier
-
-    int j = nlocal;
-    int holes = 0;
-
-    while(holes < nholes_thread[tid]) {
-      j--;
-
-      if(send_flag[j]) holes++;
-    }
-
-
-    for(int k = 0; k < nsend; k++) {
-      atom.pack_exchange(exc_sendlist_thread[tid][k], &buf_send[(k + nsend_thread[tid] - nsend) * 7]);
-
-      if(exc_sendlist_thread[tid][k] < nlocal - total_nsend) {
-        while(!send_flag[j]) j++;
-
-        atom.copy(j++, exc_sendlist_thread[tid][k]);
+      atom.pack_exchange(exc_sendlist[i], &buf_send[i * 7]);
+      if (exc_copylist[i] > 0)
+      {
+        atom.copy(exc_copylist[i], exc_sendlist[i]);
       }
     }
 
+    atom.nlocal -= nsend;
     nsend *= 7;
-    #pragma omp barrier
-    #pragma omp master
-    {
-      atom.nlocal = nlocal - total_nsend;
-      nsend = total_nsend * 7;
 
-      /* send/recv atoms in both directions
-         only if neighboring procs are different */
+    /* send/recv atoms in both directions
+       only if neighboring procs are different */
 
-      MPI_Send(&nsend, 1, MPI_INT, procneigh[idim][0], 0, MPI_COMM_WORLD);
-      MPI_Recv(&nrecv1, 1, MPI_INT, procneigh[idim][1], 0, MPI_COMM_WORLD, &status);
-      nrecv = nrecv1;
+    MPI_Send(&nsend, 1, MPI_INT, procneigh[idim][0], 0, MPI_COMM_WORLD);
+    MPI_Recv(&nrecv1, 1, MPI_INT, procneigh[idim][1], 0, MPI_COMM_WORLD, &status);
+    nrecv = nrecv1;
 
-      if(procgrid[idim] > 2) {
-        MPI_Send(&nsend, 1, MPI_INT, procneigh[idim][1], 0, MPI_COMM_WORLD);
-        MPI_Recv(&nrecv2, 1, MPI_INT, procneigh[idim][0], 0, MPI_COMM_WORLD, &status);
-        nrecv += nrecv2;
-      }
+    if(procgrid[idim] > 2) {
+      MPI_Send(&nsend, 1, MPI_INT, procneigh[idim][1], 0, MPI_COMM_WORLD);
+      MPI_Recv(&nrecv2, 1, MPI_INT, procneigh[idim][0], 0, MPI_COMM_WORLD, &status);
+      nrecv += nrecv2;
+    }
 
-      if(nrecv > maxrecv) growrecv(nrecv);
+    if(nrecv > maxrecv) growrecv(nrecv);
 
+    if(sizeof(MMD_float) == 4) {
+      MPI_Irecv(buf_recv, nrecv1, MPI_FLOAT, procneigh[idim][1], 0,
+                MPI_COMM_WORLD, &request);
+      MPI_Send(buf_send, nsend, MPI_FLOAT, procneigh[idim][0], 0, MPI_COMM_WORLD);
+    } else {
+      MPI_Irecv(buf_recv, nrecv1, MPI_DOUBLE, procneigh[idim][1], 0,
+                MPI_COMM_WORLD, &request);
+      MPI_Send(buf_send, nsend, MPI_DOUBLE, procneigh[idim][0], 0, MPI_COMM_WORLD);
+    }
+
+    MPI_Wait(&request, &status);
+
+    if(procgrid[idim] > 2) {
       if(sizeof(MMD_float) == 4) {
-        MPI_Irecv(buf_recv, nrecv1, MPI_FLOAT, procneigh[idim][1], 0,
+        MPI_Irecv(&buf_recv[nrecv1], nrecv2, MPI_FLOAT, procneigh[idim][0], 0,
                   MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send, nsend, MPI_FLOAT, procneigh[idim][0], 0, MPI_COMM_WORLD);
+        MPI_Send(buf_send, nsend, MPI_FLOAT, procneigh[idim][1], 0, MPI_COMM_WORLD);
       } else {
-        MPI_Irecv(buf_recv, nrecv1, MPI_DOUBLE, procneigh[idim][1], 0,
+        MPI_Irecv(&buf_recv[nrecv1], nrecv2, MPI_DOUBLE, procneigh[idim][0], 0,
                   MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send, nsend, MPI_DOUBLE, procneigh[idim][0], 0, MPI_COMM_WORLD);
+      MPI_Send(buf_send, nsend, MPI_DOUBLE, procneigh[idim][1], 0, MPI_COMM_WORLD);
       }
 
       MPI_Wait(&request, &status);
-
-      if(procgrid[idim] > 2) {
-        if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(&buf_recv[nrecv1], nrecv2, MPI_FLOAT, procneigh[idim][0], 0,
-                    MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, nsend, MPI_FLOAT, procneigh[idim][1], 0, MPI_COMM_WORLD);
-        } else {
-          MPI_Irecv(&buf_recv[nrecv1], nrecv2, MPI_DOUBLE, procneigh[idim][0], 0,
-                    MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, nsend, MPI_DOUBLE, procneigh[idim][1], 0, MPI_COMM_WORLD);
-        }
-
-        MPI_Wait(&request, &status);
-      }
-
-      nrecv_atoms = nrecv / 7;
-
-      for(int i = 0; i < threads->omp_num_threads; i++)
-        nrecv_thread[i] = 0;
-
     }
+
+    nrecv_atoms = nrecv / 7;
+
     /* check incoming atoms to see if they are in my box
        if they are, add to my list */
 
-    #pragma omp barrier
-
     nrecv = 0;
-
-    #pragma omp for
-    for(int i = 0; i < nrecv_atoms; i++) {
-      value = buf_recv[i * 7 + idim];
-
-      if(value >= lo && value < hi)
-        nrecv++;
-    }
-
-    nrecv_thread[tid] = nrecv;
-    nlocal = atom.nlocal;
-    #pragma omp barrier
-
-    #pragma omp master
+    #pragma omp parallel for reduction(+:nrecv)
+    for (int i = 0; i < nrecv_atoms; ++i)
     {
-      int total_nrecv = 0;
-
-      for(int i = 0; i < threads->omp_num_threads; i++) {
-        total_nrecv += nrecv_thread[i];
-        nrecv_thread[i] = total_nrecv;
-      }
-
-      atom.nlocal += total_nrecv;
-    }
-    #pragma omp barrier
-
-    int copyinpos = nlocal + nrecv_thread[tid] - nrecv;
-
-    #pragma omp for
-    for(int i = 0; i < nrecv_atoms; i++) {
       value = buf_recv[i * 7 + idim];
-
-      if(value >= lo && value < hi)
-        atom.unpack_exchange(copyinpos++, &buf_recv[i * 7]);
+      if (value >= lo && value < hi)
+      {
+        nrecv++;
+      }
     }
 
-    // #pragma omp barrier
+    nlocal = atom.nlocal;
+    if (nrecv_atoms > 0)
+    {
+      atom.nlocal += nrecv;
+    }
+
+    while (atom.nlocal >= atom.nmax) atom.growarray();
+
+    int offset = atom.nlocal;
+    #pragma omp parallel for
+    for (int i = 0; i < nrecv_atoms; ++i)
+    {
+      value = buf_recv[i * 7 + idim];
+      if (value >= lo && value < hi)
+      {
+        int k;
+        #pragma omp atomic capture
+        k = offset++;
+        atom.unpack_exchange(k, &buf_recv[i * 7]);
+      }
+    }
 
   }
 }
