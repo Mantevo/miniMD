@@ -98,7 +98,8 @@ class Comm
     int maxnlocal;
     int nrecv_atoms;
 
-
+    int* exc_sendlist;
+    int maxexc;
 };
 
 #endif

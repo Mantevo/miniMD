@@ -51,6 +51,8 @@ Comm::Comm()
   do_safeexchange = 0;
   maxthreads = 0;
   maxnlocal = 0;
+  maxexc = maxsend;
+  exc_sendlist = (int*) malloc(maxexc * sizeof(int));
 }
 
 Comm::~Comm() {}
@@ -730,7 +732,7 @@ void Comm::exchange_all(Atom &atom)
 
 void Comm::borders(Atom &atom)
 {
-  int i, m, n, iswap, idim, ineed, nsend, nrecv, nall, nfirst, nlast;
+  int n, iswap, nsend, nrecv, nfirst, nlast;
   MMD_float lo, hi;
   int pbc_flags[4];
   MMD_float* x;
@@ -745,34 +747,15 @@ void Comm::borders(Atom &atom)
 
   iswap = 0;
 
-  int tid = omp_get_thread_num();
+  if(atom.nlocal > maxnlocal) {
+    send_flag = new int[atom.nlocal];
+    maxnlocal = atom.nlocal;
+  }
 
-    #pragma omp master
-    {
-      if(atom.nlocal > maxnlocal) {
-        send_flag = new int[atom.nlocal];
-        maxnlocal = atom.nlocal;
-      }
-
-      if(maxthreads < threads->omp_num_threads) {
-        maxthreads = threads->omp_num_threads;
-        nsend_thread = new int [maxthreads];
-        nrecv_thread = new int [maxthreads];
-        nholes_thread = new int [maxthreads];
-        maxsend_thread = new int [maxthreads];
-        exc_sendlist_thread = new int*[maxthreads];
-
-        for(int i = 0; i < maxthreads; i++) {
-          maxsend_thread[i] = maxsend;
-          exc_sendlist_thread[i] = (int*) malloc(maxsend * sizeof(int));
-        }
-      }
-    }
-
-  for(idim = 0; idim < 3; idim++) {
+  for (int idim = 0; idim < 3; idim++) {
     nlast = 0;
 
-    for(ineed = 0; ineed < 2 * need[idim]; ineed++) {
+    for (int ineed = 0; ineed < 2 * need[idim]; ineed++) {
 
       // find atoms within slab boundaries lo/hi using <= and >=
       // check atoms between nfirst and nlast
@@ -794,116 +777,101 @@ void Comm::borders(Atom &atom)
         nlast = atom.nlocal + atom.nghost;
       }
 
-      #pragma omp for
-
-      for(int i = 0; i < threads->omp_num_threads; i++) {
-        nsend_thread[i] = 0;
-      }
-
-      //#pragma omp barrier
+      // count the number of atoms to exchange
       nsend = 0;
-      m = 0;
-
-      #pragma omp for
-      for(int i = nfirst; i < nlast; i++) {
-        if(x[i * PAD + idim] >= lo && x[i * PAD + idim] <= hi) {
-          if(nsend >= maxsend_thread[tid])  {
-            maxsend_thread[tid] = nsend + 100;
-            exc_sendlist_thread[tid] = (int*) realloc(exc_sendlist_thread[tid], (nsend + 100) * sizeof(int));
-          }
-
-          exc_sendlist_thread[tid][nsend++] = i;
-        }
-      }
-
-      nsend_thread[tid] = nsend;
-
-      #pragma omp barrier
-
-      #pragma omp master
+      #pragma omp parallel for reduction(+:nsend)
+      for (int i = nfirst; i < nlast; ++i)
       {
-        int total_nsend = 0;
-
-        for(int i = 0; i < threads->omp_num_threads; i++) {
-          total_nsend += nsend_thread[i];
-          nsend_thread[i] = total_nsend;
+        if (x[i * PAD + idim] >= lo && x[i * PAD + idim] <= hi)
+        {
+          nsend++;
         }
-
-        if(total_nsend > maxsendlist[iswap]) growlist(iswap, total_nsend);
-
-        if(total_nsend * 4 > maxsend) growsend(total_nsend * 4);
-      }
-      #pragma omp barrier
-
-      for(int k = 0; k < nsend; k++) {
-        atom.pack_border(exc_sendlist_thread[tid][k], &buf_send[(k + nsend_thread[tid] - nsend) * 4], pbc_flags);
-        sendlist[iswap][k + nsend_thread[tid] - nsend] = exc_sendlist_thread[tid][k];
       }
 
-      #pragma omp barrier
+      // ensure there's enough space for the list
+      if (nsend > maxexc)
+      {
+        maxexc = nsend + 100;
+        exc_sendlist = (int*) realloc(exc_sendlist, maxexc * sizeof(int));
+      }
+      if (nsend > maxsendlist[iswap]) growlist(iswap, nsend);
+      if (nsend * 4 > maxsend) growsend(nsend * 4);
 
+      // build the exchange list
+      nsend = 0;
+      #pragma omp parallel for
+      for (int i = nfirst; i < nlast; ++i)
+      {
+        if (x[i * PAD + idim] >= lo && x[i * PAD + idim] <= hi)
+        {
+          int k;
+          #pragma omp atomic capture
+          k = nsend++;
+          exc_sendlist[k] = i;
+        }
+      }
+
+      // pack the atoms into the send buffer
+      #pragma omp parallel for
+      for (int k = 0; k < nsend; ++k)
+      {
+        atom.pack_border(exc_sendlist[k], &buf_send[k * 4], pbc_flags);
+        sendlist[iswap][k] = exc_sendlist[k];
+      }
 
       /* swap atoms with other proc
       put incoming ghosts at end of my atom arrays
       if swapping with self, simply copy, no messages */
 
-      #pragma omp master
-      {
-        nsend = nsend_thread[threads->omp_num_threads - 1];
+      if(sendproc[iswap] != me) {
+        MPI_Send(&nsend, 1, MPI_INT, sendproc[iswap], 0, MPI_COMM_WORLD);
+        MPI_Recv(&nrecv, 1, MPI_INT, recvproc[iswap], 0, MPI_COMM_WORLD, &status);
 
-        if(sendproc[iswap] != me) {
-          MPI_Send(&nsend, 1, MPI_INT, sendproc[iswap], 0, MPI_COMM_WORLD);
-          MPI_Recv(&nrecv, 1, MPI_INT, recvproc[iswap], 0, MPI_COMM_WORLD, &status);
+        if(nrecv * atom.border_size > maxrecv) growrecv(nrecv * atom.border_size);
 
-          if(nrecv * atom.border_size > maxrecv) growrecv(nrecv * atom.border_size);
-
-          if(sizeof(MMD_float) == 4) {
-            MPI_Irecv(buf_recv, nrecv * atom.border_size, MPI_FLOAT,
-                      recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-            MPI_Send(buf_send, nsend * atom.border_size, MPI_FLOAT,
-                     sendproc[iswap], 0, MPI_COMM_WORLD);
-          } else {
-            MPI_Irecv(buf_recv, nrecv * atom.border_size, MPI_DOUBLE,
-                      recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-            MPI_Send(buf_send, nsend * atom.border_size, MPI_DOUBLE,
-                     sendproc[iswap], 0, MPI_COMM_WORLD);
-          }
-
-          MPI_Wait(&request, &status);
-          buf = buf_recv;
+        if(sizeof(MMD_float) == 4) {
+          MPI_Irecv(buf_recv, nrecv * atom.border_size, MPI_FLOAT,
+                    recvproc[iswap], 0, MPI_COMM_WORLD, &request);
+          MPI_Send(buf_send, nsend * atom.border_size, MPI_FLOAT,
+                   sendproc[iswap], 0, MPI_COMM_WORLD);
         } else {
-          nrecv = nsend;
-          buf = buf_send;
+          MPI_Irecv(buf_recv, nrecv * atom.border_size, MPI_DOUBLE,
+                    recvproc[iswap], 0, MPI_COMM_WORLD, &request);
+          MPI_Send(buf_send, nsend * atom.border_size, MPI_DOUBLE,
+                   sendproc[iswap], 0, MPI_COMM_WORLD);
         }
 
-        nrecv_atoms = nrecv;
+        MPI_Wait(&request, &status);
+        buf = buf_recv;
+      } else {
+        nrecv = nsend;
+        buf = buf_send;
       }
+
+      nrecv_atoms = nrecv;
+
       /* unpack buffer */
 
-      #pragma omp barrier
       n = atom.nlocal + atom.nghost;
-      nrecv = nrecv_atoms;
+      while (n + nrecv >= atom.nmax) atom.growarray();
 
-      #pragma omp for
+      #pragma omp parallel for
       for(int i = 0; i < nrecv; i++)
+      {
         atom.unpack_border(n + i, &buf[i * 4]);
-
-      // #pragma omp barrier
+      }
 
       /* set all pointers & counters */
 
-      #pragma omp master
-      {
-        sendnum[iswap] = nsend;
-        recvnum[iswap] = nrecv;
-        comm_send_size[iswap] = nsend * atom.comm_size;
-        comm_recv_size[iswap] = nrecv * atom.comm_size;
-        reverse_send_size[iswap] = nrecv * atom.reverse_size;
-        reverse_recv_size[iswap] = nsend * atom.reverse_size;
-        firstrecv[iswap] = atom.nlocal + atom.nghost;
-        atom.nghost += nrecv;
-      }
-      #pragma omp barrier
+      sendnum[iswap] = nsend;
+      recvnum[iswap] = nrecv;
+      comm_send_size[iswap] = nsend * atom.comm_size;
+      comm_recv_size[iswap] = nrecv * atom.comm_size;
+      reverse_send_size[iswap] = nrecv * atom.reverse_size;
+      reverse_recv_size[iswap] = nsend * atom.reverse_size;
+      firstrecv[iswap] = atom.nlocal + atom.nghost;
+      atom.nghost += nrecv;
+
       iswap++;
     }
   }
