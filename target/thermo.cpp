@@ -82,36 +82,34 @@ void Thermo::compute(MMD_int iflag, Atom &atom, Neighbor &neighbor, Force* force
   t_act = 0;
   e_act = 0;
   p_act = 0;
-  #pragma omp barrier
+
   t = temperature(atom);
-  #pragma omp master
-  {
-    eng = energy(atom, neighbor, force);
 
-    p = pressure(t, force);
+  eng = energy(atom, neighbor, force);
 
-    MMD_int istep = iflag;
+  p = pressure(t, force);
 
-    if(iflag == -1) istep = ntimes;
+  MMD_int istep = iflag;
 
-    if(iflag == 0) mstat = 0;
+  if(iflag == -1) istep = ntimes;
 
-    steparr[mstat] = istep;
-    tmparr[mstat] = t;
-    engarr[mstat] = eng;
-    prsarr[mstat] = p;
+  if(iflag == 0) mstat = 0;
 
-    mstat++;
+  steparr[mstat] = istep;
+  tmparr[mstat] = t;
+  engarr[mstat] = eng;
+  prsarr[mstat] = p;
 
-    double oldtime = timer.array[TIME_TOTAL];
-    timer.barrier_stop(TIME_TOTAL);
+  mstat++;
 
-    if(threads->mpi_me == 0) {
-      fprintf(stdout, "%i %e %e %e %6.3lf\n", istep, t, eng, p, istep == 0 ? 0.0 : timer.array[TIME_TOTAL]);
-    }
+  double oldtime = timer.array[TIME_TOTAL];
+  timer.barrier_stop(TIME_TOTAL);
 
-    timer.array[TIME_TOTAL] = oldtime;
+  if(threads->mpi_me == 0) {
+    fprintf(stdout, "%i %e %e %e %6.3lf\n", istep, t, eng, p, istep == 0 ? 0.0 : timer.array[TIME_TOTAL]);
   }
+
+  timer.array[TIME_TOTAL] = oldtime;
 }
 
 /* reduced potential energy */
@@ -142,34 +140,26 @@ MMD_float Thermo::temperature(Atom &atom)
   MMD_int i;
   MMD_float vx, vy, vz;
 
-  MMD_float t = 0.0;
   t_act = 0;
-  #pragma omp barrier
 
   MMD_float* v = atom.v;
 
-  OMPFORSCHEDULE
+  MMD_float t = 0.0;
+  #pragma omp parallel for reduction(+:t)
   for(i = 0; i < atom.nlocal; i++) {
     vx = v[i * PAD + 0];
     vy = v[i * PAD + 1];
     vz = v[i * PAD + 2];
     t += (vx * vx + vy * vy + vz * vz) * atom.mass;
   }
-
-  #pragma omp atomic
   t_act += t;
 
-  #pragma omp barrier
-
   MMD_float t1;
-  #pragma omp master
-  {
-    if(sizeof(MMD_float) == 4)
-      MPI_Allreduce(&t_act, &t1, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
-    else
-      MPI_Allreduce(&t_act, &t1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  if(sizeof(MMD_float) == 4)
+    MPI_Allreduce(&t_act, &t1, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+  else
+    MPI_Allreduce(&t_act, &t1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-  }
   return t1 * t_scale;
 }
 

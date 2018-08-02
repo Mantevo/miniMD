@@ -101,6 +101,8 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
     if(use_oldcompute)
       return compute_original<0>(atom, neighbor, me);
 
+
+
     if(neighbor.halfneigh) {
       if(neighbor.ghost_newton) {
         if(threads->omp_num_threads > 1) {
@@ -293,10 +295,9 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   MMD_float* const f = atom.f;
   const int* const type = atom.type;
 
-  #pragma omp barrier
   // clear force on own and ghost atoms
 
-  OMPFORSCHEDULE
+  #pragma omp parallel for
   for(int i = 0; i < nall; i++) {
     f[i * PAD + 0] = MMD_float(0.0);
     f[i * PAD + 1] = MMD_float(0.0);
@@ -306,7 +307,7 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   // loop over all neighbors of my atoms
   // store force on both atoms i and j
 
-  OMPFORSCHEDULE
+  #pragma omp parallel for reduction(+:t_eng_vdwl, t_virial)
   for(int i = 0; i < nlocal; i++) {
     const int* const neighs = &neighbor.neighbors[i * neighbor.maxneighs];
     const int numneighs = neighbor.numneigh[i];
@@ -365,12 +366,8 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     f[i * PAD + 2] += fiz;
   }
 
-  #pragma omp atomic
   eng_vdwl += t_eng_vdwl;
-  #pragma omp atomic
   virial += t_virial;
-
-  #pragma omp barrier
 }
 
 //#define USE_SCATTER_VARIANT
@@ -450,19 +447,16 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
   MMD_float t_eng_vdwl = 0;
   MMD_float t_virial = 0;
 
-  const int tid = omp_get_thread_num();
   const int nthreads = threads->omp_num_threads;
 
   const int nlocal = atom.nlocal;
   const int nall = atom.nlocal + atom.nghost;
   const MMD_float* const x = atom.x;
-  MMD_float* const f = &atom.f_private[tid * nall * PAD];
   const int* const type = atom.type;
 
-  #pragma omp barrier
-
-  OMPFORSCHEDULE
+  #pragma omp parallel for reduction(+:t_eng_vdwl, t_virial)
   for(int i = 0; i < nlocal; i++) {
+    MMD_float* const f = &atom.f_private[omp_get_thread_num() * nall * PAD]; // TODO: Hoist this
     const int* const neighs = &neighbor.neighbors[i * neighbor.maxneighs];
     const int numneighs = neighbor.numneigh[i];
     const MMD_float xtmp = x[i * PAD + 0];
@@ -525,7 +519,7 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
   // iterates through array(s) in cache-line-sized chunks
 
   MMD_float* reduction_out = (MMD_float*) atom.f;
-  OMPFORSCHEDULE
+  #pragma omp parallel for
   for (int chunk_offset = 0; chunk_offset < nall * PAD; chunk_offset += CACHELINE_SIZE/sizeof(MMD_float))
   {
     // don't worry about the last chunk; arrays are padded at the end
@@ -545,12 +539,8 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
     }
   }
 
-  #pragma omp atomic
   eng_vdwl += t_eng_vdwl;
-  #pragma omp atomic
   virial += t_virial;
-
-  #pragma omp barrier
 }
 
 //optimised version of compute
@@ -572,10 +562,9 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   MMD_float* const f = atom.f;
   const int* const type = atom.type;
 
-  #pragma omp barrier
   // clear force on own and ghost atoms
 
-  OMPFORSCHEDULE
+  #pragma omp parallel for
   for(int i = 0; i < nlocal; i++) {
     f[i * PAD + 0] = MMD_float(0.0);
     f[i * PAD + 1] = MMD_float(0.0);
@@ -585,7 +574,7 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   // loop over all neighbors of my atoms
   // store force on atom i
 
-  OMPFORSCHEDULE
+  #pragma omp parallel for reduction(+:t_eng_vdwl, t_virial)
   for(int i = 0; i < nlocal; i++) {
     const int* const neighs = &neighbor.neighbors[i * neighbor.maxneighs];
     const int numneighs = neighbor.numneigh[i];
@@ -639,11 +628,6 @@ void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   t_eng_vdwl *= MMD_float(4.0);
   t_virial *= MMD_float(0.5);
 
-  #pragma omp atomic
   eng_vdwl += t_eng_vdwl;
-  #pragma omp atomic
   virial += t_virial;
-  #pragma omp barrier
 }
-
-

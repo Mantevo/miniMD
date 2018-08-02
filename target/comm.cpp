@@ -275,7 +275,6 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
 
 void Comm::communicate(Atom &atom)
 {
-
   int iswap;
   int pbc_flags[4];
   MMD_float* buf;
@@ -291,39 +290,32 @@ void Comm::communicate(Atom &atom)
     pbc_flags[2] = pbc_flagy[iswap];
     pbc_flags[3] = pbc_flagz[iswap];
 
-    //#pragma omp barrier
     atom.pack_comm(sendnum[iswap], sendlist[iswap], buf_send, pbc_flags);
-
-    //#pragma omp barrier
 
     /* exchange with another proc
        if self, set recv buffer to send buffer */
 
     if(sendproc[iswap] != me) {
-      #pragma omp master
-      {
-        if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_FLOAT,
-          recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, comm_send_size[iswap], MPI_FLOAT,
-          sendproc[iswap], 0, MPI_COMM_WORLD);
-        } else {
-          MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_DOUBLE,
-          recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, comm_send_size[iswap], MPI_DOUBLE,
-          sendproc[iswap], 0, MPI_COMM_WORLD);
-        }
-
-        MPI_Wait(&request, &status);
+      if(sizeof(MMD_float) == 4) {
+        MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_FLOAT,
+        recvproc[iswap], 0, MPI_COMM_WORLD, &request);
+        MPI_Send(buf_send, comm_send_size[iswap], MPI_FLOAT,
+        sendproc[iswap], 0, MPI_COMM_WORLD);
+      } else {
+        MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_DOUBLE,
+        recvproc[iswap], 0, MPI_COMM_WORLD, &request);
+        MPI_Send(buf_send, comm_send_size[iswap], MPI_DOUBLE,
+        sendproc[iswap], 0, MPI_COMM_WORLD);
       }
+
+      MPI_Wait(&request, &status);
+
       buf = buf_recv;
     } else buf = buf_send;
 
-    #pragma omp barrier
     /* unpack buffer */
 
     atom.unpack_comm(recvnum[iswap], firstrecv[iswap], buf);
-    //#pragma omp barrier
   }
 }
 
@@ -340,38 +332,31 @@ void Comm::reverse_communicate(Atom &atom)
 
     /* pack buffer */
 
-    // #pragma omp barrier
     atom.pack_reverse(recvnum[iswap], firstrecv[iswap], buf_send);
 
-    // #pragma omp barrier
     /* exchange with another proc
        if self, set recv buffer to send buffer */
 
     if(sendproc[iswap] != me) {
-
-      #pragma omp master
-      {
-        if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(buf_recv, reverse_recv_size[iswap], MPI_FLOAT,
-          sendproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, reverse_send_size[iswap], MPI_FLOAT,
-          recvproc[iswap], 0, MPI_COMM_WORLD);
-        } else {
-          MPI_Irecv(buf_recv, reverse_recv_size[iswap], MPI_DOUBLE,
-          sendproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, reverse_send_size[iswap], MPI_DOUBLE,
-          recvproc[iswap], 0, MPI_COMM_WORLD);
-        }
-        MPI_Wait(&request, &status);
+      if(sizeof(MMD_float) == 4) {
+        MPI_Irecv(buf_recv, reverse_recv_size[iswap], MPI_FLOAT,
+        sendproc[iswap], 0, MPI_COMM_WORLD, &request);
+        MPI_Send(buf_send, reverse_send_size[iswap], MPI_FLOAT,
+        recvproc[iswap], 0, MPI_COMM_WORLD);
+      } else {
+        MPI_Irecv(buf_recv, reverse_recv_size[iswap], MPI_DOUBLE,
+        sendproc[iswap], 0, MPI_COMM_WORLD, &request);
+        MPI_Send(buf_send, reverse_send_size[iswap], MPI_DOUBLE,
+        recvproc[iswap], 0, MPI_COMM_WORLD);
       }
+      MPI_Wait(&request, &status);
+
       buf = buf_recv;
     } else buf = buf_send;
 
     /* unpack buffer */
 
-    #pragma omp barrier
     atom.unpack_reverse(sendnum[iswap], sendlist[iswap], buf);
-    // #pragma omp barrier
   }
 }
 

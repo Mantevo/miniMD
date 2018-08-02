@@ -81,9 +81,8 @@ void Neighbor::build(Atom &atom)
   ncalls++;
   const int nlocal = atom.nlocal;
   const int nall = atom.nlocal + atom.nghost;
-  /* extend atom arrays if necessary */
 
-  #pragma omp master
+  /* extend atom arrays if necessary */
 
   if(nall > nmax) {
     nmax = nall;
@@ -103,11 +102,11 @@ void Neighbor::build(Atom &atom)
 #endif
   }
 
-  #pragma omp barrier
   /* bin local & ghost atoms */
 
   binatoms(atom);
   count = 0;
+
   /* loop over each atom, storing neighbors */
 
   const MMD_float* const x = atom.x;
@@ -115,15 +114,13 @@ void Neighbor::build(Atom &atom)
   int ntypes = atom.ntypes;
 
   resize = 1;
-  #pragma omp barrier
 
   while(resize) {
-    #pragma omp barrier
+
     int new_maxneighs = maxneighs;
     resize = 0;
-    #pragma omp barrier
 
-    OMPFORSCHEDULE
+    #pragma omp parallel for
     for(int i = 0; i < nlocal; i++) {
       int* neighptr = &neighbors[i * maxneighs];
       /* if necessary, goto next page and add pages */
@@ -190,25 +187,17 @@ void Neighbor::build(Atom &atom)
       }
     }
 
-    // #pragma omp barrier
-
     if(resize) {
-      #pragma omp master
-      {
-        maxneighs = new_maxneighs * 1.2;
+      maxneighs = new_maxneighs * 1.2;
 #ifdef ALIGNMALLOC
-  		_mm_free(neighbors);
-  		neighbors = (int*) _mm_malloc(nmax* maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
+      _mm_free(neighbors);
+      neighbors = (int*) _mm_malloc(nmax* maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
 #else
-  		free(neighbors);
-        neighbors = (int*) malloc(nmax* maxneighs * sizeof(int));
+      free(neighbors);
+      neighbors = (int*) malloc(nmax* maxneighs * sizeof(int));
 #endif
-      }
-      #pragma omp barrier
     }
   }
-
-  #pragma omp barrier
 
 }
 
@@ -224,35 +213,23 @@ void Neighbor::binatoms(Atom &atom, int count)
 
   resize = 1;
 
-  #pragma omp barrier
-
   while(resize > 0) {
-    #pragma omp barrier
+
     resize = 0;
-    #pragma omp barrier
-    #pragma omp for schedule(static)
+    #pragma omp parallel for
     for(int i = 0; i < mbins; i++) bincount[i] = 0;
 
-
-    OMPFORSCHEDULE
+    #pragma omp parallel for
     for(int i = 0; i < nall; i++) {
       const int ibin = coord2bin(x[i * PAD + 0], x[i * PAD + 1], x[i * PAD + 2]);
 
       if(bincount[ibin] < atoms_per_bin) {
         int ac;
-#ifdef OpenMP31
         #pragma omp atomic capture
         ac = bincount[ibin]++;
-#else
-        ac = __sync_fetch_and_add(bincount + ibin, 1);
-#endif
         bins[ibin * atoms_per_bin + ac] = i;
       } else resize = 1;
     }
-
-    // #pragma omp barrier
-
-    #pragma omp master
 
     if(resize) {
       free(bins);
@@ -260,11 +237,7 @@ void Neighbor::binatoms(Atom &atom, int count)
       bins = (int*) malloc(mbins * atoms_per_bin * sizeof(int));
     }
 
-    // #pragma omp barrier
   }
-
-  #pragma omp barrier
-
 }
 
 /* convert xyz atom coords into local bin #
