@@ -1,0 +1,74 @@
+# Makefile for mpicxx compiler
+
+SHELL = /bin/sh
+
+# Default Options
+#
+SIMD = yes
+
+#.IGNORE:
+
+# System-specific settings
+
+
+CC =		clang++
+CCFLAGS =	-O3 -I ./MPI-Stubs/ -fopenmp
+LINK =		clang++
+LINKFLAGS =	-O3 -fopenmp
+USRLIB =	-L ./MPI-Stubs/ -l mpi_stubs
+SYSLIB =	
+SIZE =		size
+
+ifeq ($(SIMD), yes)
+CCFLAGS += -DUSE_SIMD
+endif
+
+ifeq ($(RED_PREC), yes)
+CCFLAGS += -ffast-math
+LINKFLAGS += -ffast-math
+endif
+
+ifeq ($(PAD), 3)
+CCFLAGS += -DPAD=3 
+LINKFLAGS += -DPAD=3 
+endif
+
+ifeq ($(PAD), 4)
+CCFLAGS += -DPAD=4 
+LINKFLAGS += -DPAD=4 
+endif
+
+ifeq ($(DEBUG), yes)
+CCFLAGS += -g -debug inline-debug-info
+LINKFLAGS += -g -debug inline-debug-info
+endif
+
+ifeq ($(SP), yes)
+CCFLAGS += -DPRECISION=1 
+LINKFLAGS += -DPRECISION=1
+else
+CCFLAGS += -DPRECISION=2
+LINKFLAGS += -DPRECISION=2
+endif
+
+ifeq ($(LIBRT),yes)
+CCFLAGS += -DPREC_TIMER
+USRLIB += -lrt
+endif
+
+# Link rule
+
+$(EXE):	$(OBJ)
+	$(LINK) $(OBJ) $(LINKFLAGS) $(USRLIB) $(SYSLIB) -o $(EXE)
+	$(SIZE) $(EXE)
+	
+
+# Compilation rules
+
+.cpp.o:
+	$(CC) $(CCFLAGS) -E $*.cpp > $*.2.cpp
+	$(CC) $(CCFLAGS) -c $*.2.cpp -o $*.o
+ 
+# Individual dependencies
+
+$(OBJ): $(INC)

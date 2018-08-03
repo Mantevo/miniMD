@@ -21,6 +21,7 @@ help:
 	@echo 'Type "make target {Options}" where target is one of:'
 	@echo '      openmpi     (using OpenMPI)'
 	@echo '      intel       (using intelMPI)'
+	@echo '      clang       (using MPI-Stubs)'
 	@echo '      cray        (using CrayCompiler for CPUs)'
 	@echo '      cray_intel  (using Cray Wrapper for Intel compiler for CPUs)'
 	@echo 'Options (not all of which apply for each target):'
@@ -71,6 +72,14 @@ intel:
 	@cd Obj_$@; \
 	$(MAKE)  "OBJ = $(OBJ)" "INC = $(INC)" "EXE = ../$(EXE)" ../$(EXE)
 #       @if [ -d Obj_$@ ]; then cd Obj_$@; rm $(SRC) $(INC) Makefile*; fi
+
+clang:
+	if [ ! -d Obj_$@ ]; then mkdir Obj_$@; fi
+	@cp -p $(SRC) $(INC) Obj_$@
+	@cp -r -p MPI-Stubs Obj_$@
+	@cp Makefile.$@ Obj_$@/Makefile
+	@cd Obj_$@; \
+	$(MAKE)  "OBJ = $(OBJ)" "INC = $(INC)" "EXE = ../$(EXE)" ../$(EXE)
 
 
 # Clean

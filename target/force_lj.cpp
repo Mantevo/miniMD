@@ -320,8 +320,10 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     MMD_float fiz = MMD_float(0.0);
 
 #ifdef USE_SIMD
+#ifndef __clang__ /* clang errors on atomic inside simd */
     #pragma vector unaligned
     #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
+#endif
 #endif
     for(int k = 0; k < numneighs; k++) {
       const int j = neighs[k];
@@ -371,7 +373,7 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 }
 
 //#define USE_SCATTER_VARIANT
-__declspec(noinline)
+__attribute__((noinline))
 void private_force_update(MMD_float* f, const int32_t j, const MMD_float x, const MMD_float y, const MMD_float z)
 {
   f[j * PAD + 0] -= x;
