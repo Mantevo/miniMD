@@ -30,6 +30,13 @@
    ---------------------------------------------------------------------- */
 
 #include "stdio.h"
+// FIXME: Temporary workaround for clang's aversion to math.h
+#ifdef __clang__
+#undef __SSE2_MATH__
+#undef __SSE2__
+#undef __SSE_MATH__
+#undef __SSE__
+#endif
 #include "math.h"
 #include "force.h"
 #include "openmp.h"
