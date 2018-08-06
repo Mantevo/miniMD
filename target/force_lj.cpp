@@ -381,6 +381,7 @@ void private_force_update(MMD_float* f, const int32_t j, const MMD_float x, cons
   f[j * PAD + 2] -= z;
 }
 
+#ifdef __INTEL_COMPILER
 #if (PAD == 4)
 #include <immintrin.h>
 __declspec(vector_variant(implements(private_force_update(MMD_float* f, const int32_t j, const MMD_float x, const MMD_float y, const MMD_float z)),
@@ -434,6 +435,7 @@ void _mm512_private_force_update_ps(MMD_float* f, const __m512i j, const __m512 
     _mm512_mask_compressstoreu_ps(f + js[g + 12], 0xF000, fj);
   }
 }
+#endif
 #endif
 
 //optimised version of compute
