@@ -4,7 +4,7 @@ SHELL = /bin/sh
 
 # Default Options
 #
-SIMD = yes
+SIMD = no
 
 #.IGNORE:
 
@@ -56,6 +56,16 @@ CCFLAGS += -DPREC_TIMER
 USRLIB += -lrt
 endif
 
+ifeq ($(OFFLOAD), x86)
+CCFLAGS += -fopenmp-targets=x86_64-unknown-linux-gnu -DUSE_OFFLOAD
+LINKFLAGS += -fopenmp-targets=x86_64-unknown-linux-gnu
+endif
+
+ifeq ($(OFFLOAD), nvptx)
+CCFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda -DUSE_OFFLOAD
+LINKFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda
+endif
+
 # Link rule
 
 $(EXE):	$(OBJ)
@@ -66,8 +76,7 @@ $(EXE):	$(OBJ)
 # Compilation rules
 
 .cpp.o:
-	$(CC) $(CCFLAGS) -E $*.cpp > $*.2.cpp
-	$(CC) $(CCFLAGS) -c $*.2.cpp -o $*.o
+	$(CC) $(CCFLAGS) -c $*.cpp -o $*.o
  
 # Individual dependencies
 
