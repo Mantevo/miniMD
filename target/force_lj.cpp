@@ -31,17 +31,17 @@
 
 #include "stdio.h"
 #include "math.h"
-#include "force_lj.h"
+#include "force.h"
 #include "openmp.h"
 
 #ifndef VECTORLENGTH
 #define VECTORLENGTH 4
 #endif
 
-ForceLJ::ForceLJ(int ntypes_)
+Force::Force(int ntypes_)
 {
   cutforce = 0.0;
-  use_oldcompute = 0;
+  
   reneigh = 1;
   style = FORCELJ;
   ntypes = ntypes_;
@@ -57,19 +57,17 @@ ForceLJ::ForceLJ(int ntypes_)
     sigma6[i] = 1.0;
     sigma[i] = 1.0;
   }
-
-
 }
-ForceLJ::~ForceLJ() {}
 
-void ForceLJ::setup()
+Force::~Force() {}
+
+void Force::setup()
 {
   for(int i = 0; i<ntypes*ntypes; i++)
     cutforcesq[i] = cutforce * cutforce;
 }
 
-
-void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
+void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 {
   eng_vdwl = 0;
   virial = 0;
@@ -130,7 +128,7 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 //  -MPI only
 //  -not vectorizable
 template<int EVFLAG>
-void ForceLJ::compute_original(Atom &atom, Neighbor &neighbor, int me)
+void Force::compute_original(Atom &atom, Neighbor &neighbor, int me)
 {
   int nlocal = atom.nlocal;
   int nall = atom.nlocal + atom.nghost;
@@ -197,7 +195,7 @@ void ForceLJ::compute_original(Atom &atom, Neighbor &neighbor, int me)
 //     -getting rid of 2d pointers
 //     -use pragma omp simd to force vectorization of inner loop
 template<int EVFLAG, int GHOST_NEWTON>
-void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
+void Force::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
 {
   const int nlocal = atom.nlocal;
   const int nall = atom.nlocal + atom.nghost;
@@ -284,7 +282,7 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
 //    -getting rid of 2d pointers
 //    -use pragma omp simd to force vectorization of inner loop (not currently supported due to OpenMP atomics
 template<int EVFLAG, int GHOST_NEWTON>
-void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
+void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 {
   MMD_float t_eng_vdwl = 0;
   MMD_float t_virial = 0;
@@ -446,7 +444,7 @@ void _mm512_private_force_update_ps(MMD_float* f, const __m512i j, const __m512 
 //    -use pragma omp simd to force vectorization of inner loop
 //    -use private force arrays for each thread
 template<int EVFLAG, int GHOST_NEWTON>
-void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, int me)
+void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, int me)
 {
   MMD_float t_eng_vdwl = 0;
   MMD_float t_virial = 0;
@@ -555,7 +553,7 @@ void ForceLJ::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor,
 //    -get rid of 2d pointers
 //    -use pragma omp simd to force vectorization of inner loop
 template<int EVFLAG>
-void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
+void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
 {
   MMD_float t_eng_vdwl = 0;
   MMD_float t_virial = 0;

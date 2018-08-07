@@ -32,7 +32,7 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "mpi.h"
-#include "force_lj.h"
+#include "force.h"
 #include "integrate.h"
 #include "thermo.h"
 

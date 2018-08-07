@@ -29,17 +29,23 @@
    Please read the accompanying README and LICENSE files.
    ---------------------------------------------------------------------- */
 
-#ifndef FORCE_H_
-#define FORCE_H_
+#ifndef FORCELJ_H
+#define FORCELJ_H
 
-#include "ljs.h"
 #include "atom.h"
 #include "neighbor.h"
+#include "threadData.h"
+#include "types.h"
 #include "comm.h"
 
 class Force
 {
   public:
+    Force(int ntypes_);
+    ~Force();
+    void setup();
+    void compute(Atom &, Neighbor &, Comm &, int);
+
     MMD_float cutforce;
     MMD_float* cutforcesq;
     MMD_float eng_vdwl;
@@ -48,22 +54,28 @@ class Force
     MMD_float virial;
     int ntypes;
 
-    Force() {};
-    virtual ~Force() {};
-    virtual void setup() {};
-    virtual void finalise() {};
-    virtual void compute(Atom &, Neighbor &, Comm &, int) {};
-
     int use_sse;
     int use_oldcompute;
     ThreadData* threads;
     MMD_int reneigh;
     Timer* timer;
 
-    MMD_float *epsilon, *sigma6, *sigma; //Parameters for LJ only
+    MMD_float *epsilon, *sigma6, *sigma;
 
     ForceStyle style;
+
   protected:
+    template<int EVFLAG>
+    void compute_original(Atom &, Neighbor &, int);
+    template<int EVFLAG, int GHOST_NEWTON>
+    void compute_halfneigh(Atom &, Neighbor &, int);
+    template<int EVFLAG, int GHOST_NEWTON>
+    void compute_halfneigh_threaded(Atom &, Neighbor &, int);
+    template<int EVFLAG, int GHOST_NEWTON>
+    void compute_halfneigh_threaded_private(Atom &, Neighbor &, int);
+
+    template<int EVFLAG>
+    void compute_fullneigh(Atom &, Neighbor &, int);
 
     MMD_int me;
 };

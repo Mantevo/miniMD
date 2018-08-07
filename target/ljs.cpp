@@ -44,9 +44,7 @@
 #include "threadData.h"
 #include "string.h"
 #include "openmp.h"
-#include "force_eam.h"
 #include "force.h"
-#include "force_lj.h"
 
 #define MAXLINE 256
 
@@ -281,20 +279,7 @@ int main(int argc, char** argv)
   Timer timer;
   ThreadData threads;
 
-  Force* force;
-
-  if(in.forcetype == FORCEEAM) {
-    force = (Force*) new ForceEAM(ntypes);
-
-    if(ghost_newton == 1) {
-      if(me == 0)
-        printf("# EAM currently requires '--ghost_newton 0'; Changing setting now.\n");
-
-      ghost_newton = 0;
-    }
-  }
-
-  if(in.forcetype == FORCELJ) force = (Force*) new ForceLJ(ntypes);
+  Force* force = (Force*) new Force(ntypes);
 
   threads.mpi_me = me;
   threads.mpi_num_threads = nprocs;
@@ -420,6 +405,12 @@ int main(int argc, char** argv)
 
     create_velocity(in.t_request, atom, thermo);
 
+  }
+
+  if (in.forcetype == FORCEEAM)
+  {
+    if(me == 0) fprintf(stderr, "ERROR: ForceEAM not supported by OpenMP 5.0 version\n");
+    exit(EXIT_FAILURE);
   }
 
   if(me == 0)
