@@ -16,6 +16,7 @@ IndentCaseLabels: false
 IndentFunctionDeclarationAfterType: false
 IndentWidth: 2
 MaxEmptyLinesToKeep: 2
+DerivePointerAlignment: false
 PointerAlignment: Right
 SpaceAfterControlStatementKeyword: true
 SpaceBeforeAssignmentOperators: true

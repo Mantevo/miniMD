@@ -29,50 +29,56 @@
    Please read the accompanying README and LICENSE files.
    ---------------------------------------------------------------------- */
 
-#include <cstdio>
+#include "atom.h"
+#include "integrate.h"
 #include "miniMD_math.h"
 #include "mpi.h"
-#include "atom.h"
+#include "neighbor.h"
 #include "thermo.h"
 #include "types.h"
-#include "integrate.h"
-#include "neighbor.h"
-
-#include <cstring>
 #include <cstdio>
 
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#include <cstdio>
+#include <cstring>
 
-double random(int*);
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+double random(int *);
 
 #define NSECTIONS 3
 #define MAXLINE 255
-char line[MAXLINE];
-char keyword[MAXLINE];
-FILE* fp;
+char  line[MAXLINE];
+char  keyword[MAXLINE];
+FILE *fp;
 
 void read_lammps_parse_keyword(int first)
 {
-  int eof = 0;
+  int  eof = 0;
   char buffer[MAXLINE];
 
   // proc 0 reads upto non-blank line plus 1 following line
   // eof is set to 1 if any read hits end-of-file
 
-  if(!first) {
-    if(fgets(line, MAXLINE, fp) == NULL) eof = 1;
+  if(!first)
+  {
+    if(fgets(line, MAXLINE, fp) == NULL)
+      eof = 1;
   }
 
-  while(eof == 0 && strspn(line, " \t\n\r") == strlen(line)) {
-    if(fgets(line, MAXLINE, fp) == NULL) eof = 1;
+  while(eof == 0 && strspn(line, " \t\n\r") == strlen(line))
+  {
+    if(fgets(line, MAXLINE, fp) == NULL)
+      eof = 1;
   }
 
-  if(fgets(buffer, MAXLINE, fp) == NULL) eof = 1;
+  if(fgets(buffer, MAXLINE, fp) == NULL)
+    eof = 1;
 
   // if eof, set keyword empty and return
 
-  if(eof) {
+  if(eof)
+  {
     keyword[0] = '\0';
     return;
   }
@@ -83,10 +89,10 @@ void read_lammps_parse_keyword(int first)
   // copy non-whitespace portion of line into keyword
 
   int start = strspn(line, " \t\n\r");
-  int stop = strlen(line) - 1;
+  int stop  = strlen(line) - 1;
 
-  while(line[stop] == ' ' || line[stop] == '\t'
-        || line[stop] == '\n' || line[stop] == '\r') stop--;
+  while(line[stop] == ' ' || line[stop] == '\t' || line[stop] == '\n' || line[stop] == '\r')
+    stop--;
 
   line[stop + 1] = '\0';
   strcpy(keyword, &line[start]);
@@ -94,27 +100,30 @@ void read_lammps_parse_keyword(int first)
 
 void read_lammps_header(Atom &atom)
 {
-  int n;
-  char* ptr;
+  int   n;
+  char *ptr;
 
   // customize for new sections
 
-  const char* section_keywords[NSECTIONS] =
-  {"Atoms", "Velocities", "Masses"};
+  const char *section_keywords[NSECTIONS] = {"Atoms", "Velocities", "Masses"};
 
   // skip 1st line of file
 
-  char* eof = fgets(line, MAXLINE, fp);
+  char *eof = fgets(line, MAXLINE, fp);
 
   // customize for new header lines
   int ntypes = 0;
 
-  while(1) {
+  while(1)
+  {
 
-    if(fgets(line, MAXLINE, fp) == NULL) n = 0;
-    else n = strlen(line) + 1;
+    if(fgets(line, MAXLINE, fp) == NULL)
+      n = 0;
+    else
+      n = strlen(line) + 1;
 
-    if(n == 0) {
+    if(n == 0)
+    {
       line[0] = '\0';
       return;
     }
@@ -124,28 +133,39 @@ void read_lammps_header(Atom &atom)
 
     double xlo, xhi, ylo, yhi, zlo, zhi;
 
-    if(ptr = strchr(line, '#')) * ptr = '\0';
+    if(ptr = strchr(line, '#'))
+      *ptr = '\0';
 
-    if(strspn(line, " \t\n\r") == strlen(line)) continue;
+    if(strspn(line, " \t\n\r") == strlen(line))
+      continue;
 
     // search line for header keyword and set corresponding variable
 
-    if(strstr(line, "atoms")) sscanf(line, "%i", &atom.natoms);
-    else if(strstr(line, "atom types")) sscanf(line, "%i", &ntypes);
+    if(strstr(line, "atoms"))
+      sscanf(line, "%i", &atom.natoms);
+    else if(strstr(line, "atom types"))
+      sscanf(line, "%i", &ntypes);
 
     // check for these first
     // otherwise "triangles" will be matched as "angles"
 
-    else if(strstr(line, "xlo xhi")) {
+    else if(strstr(line, "xlo xhi"))
+    {
       sscanf(line, "%lg %lg", &xlo, &xhi);
       atom.box.xprd = xhi - xlo;
-    } else if(strstr(line, "ylo yhi")) {
+    }
+    else if(strstr(line, "ylo yhi"))
+    {
       sscanf(line, "%lg %lg", &ylo, &yhi);
       atom.box.yprd = yhi - ylo;
-    } else if(strstr(line, "zlo zhi")) {
+    }
+    else if(strstr(line, "zlo zhi"))
+    {
       sscanf(line, "%lg %lg", &zlo, &zhi);
       atom.box.zprd = zhi - zlo;
-    } else break;
+    }
+    else
+      break;
   }
 
   // error check on total system size
@@ -156,9 +176,11 @@ void read_lammps_header(Atom &atom)
   read_lammps_parse_keyword(1);
 
   for(n = 0; n < NSECTIONS; n++)
-    if(strcmp(keyword, section_keywords[n]) == 0) break;
+    if(strcmp(keyword, section_keywords[n]) == 0)
+      break;
 
-  if(n == NSECTIONS) {
+  if(n == NSECTIONS)
+  {
     char str[128];
     sprintf(str, "Unknown identifier in data file: %s", keyword);
   }
@@ -166,18 +188,19 @@ void read_lammps_header(Atom &atom)
   // error check on consistency of header values
 }
 
-void read_lammps_atoms(Atom &atom, MMD_float* x)
+void read_lammps_atoms(Atom &atom, MMD_float *x)
 {
   int i;
 
-  int nread = 0;
-  int natoms = atom.natoms;
+  int nread   = 0;
+  int natoms  = atom.natoms;
   atom.nlocal = 0;
 
-  int type;
+  int    type;
   double xx, xy, xz;
 
-  while(nread < natoms) {
+  while(nread < natoms)
+  {
     fgets(line, MAXLINE, fp);
     sscanf(line, "%i %i %lg %lg %lg", &i, &type, &xx, &xy, &xz);
     i--;
@@ -186,19 +209,19 @@ void read_lammps_atoms(Atom &atom, MMD_float* x)
     x[i * PAD + 2] = xz;
     nread++;
   }
-
 }
 
-void read_lammps_velocities(Atom &atom, MMD_float* v)
+void read_lammps_velocities(Atom &atom, MMD_float *v)
 {
   int i;
 
-  int nread = 0;
+  int nread  = 0;
   int natoms = atom.natoms;
 
   double x, y, z;
 
-  while(nread < natoms) {
+  while(nread < natoms)
+  {
     fgets(line, MAXLINE, fp);
     sscanf(line, "%i %lg %lg %lg", &i, &x, &y, &z);
     i--;
@@ -209,14 +232,14 @@ void read_lammps_velocities(Atom &atom, MMD_float* v)
   }
 
   // check that all atoms were assigned correctly
-
 }
 
-int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &integrate, Thermo &thermo, char* file, int units)
+int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &integrate, Thermo &thermo, char *file, int units)
 {
   fp = fopen(file, "r");
 
-  if(fp == NULL) {
+  if(fp == NULL)
+  {
     char str[128];
     sprintf(str, "Cannot open file %s", file);
   }
@@ -225,60 +248,70 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
 
   comm.setup(neighbor.cutneigh, atom);
 
-  if(neighbor.nbinx < 0) {
-    MMD_float volume = atom.box.xprd * atom.box.yprd * atom.box.zprd;
-    MMD_float rho = 1.0 * atom.natoms / volume;
+  if(neighbor.nbinx < 0)
+  {
+    MMD_float volume         = atom.box.xprd * atom.box.yprd * atom.box.zprd;
+    MMD_float rho            = 1.0 * atom.natoms / volume;
     MMD_float neigh_bin_size = pow(rho * 16, MMD_float(1.0 / 3.0));
-    neighbor.nbinx = atom.box.xprd / neigh_bin_size;
-    neighbor.nbiny = atom.box.yprd / neigh_bin_size;
-    neighbor.nbinz = atom.box.zprd / neigh_bin_size;
+    neighbor.nbinx           = atom.box.xprd / neigh_bin_size;
+    neighbor.nbiny           = atom.box.yprd / neigh_bin_size;
+    neighbor.nbinz           = atom.box.zprd / neigh_bin_size;
   }
 
-  if(neighbor.nbinx == 0) neighbor.nbinx = 1;
+  if(neighbor.nbinx == 0)
+    neighbor.nbinx = 1;
 
-  if(neighbor.nbiny == 0) neighbor.nbiny = 1;
+  if(neighbor.nbiny == 0)
+    neighbor.nbiny = 1;
 
-  if(neighbor.nbinz == 0) neighbor.nbinz = 1;
+  if(neighbor.nbinz == 0)
+    neighbor.nbinz = 1;
 
   neighbor.setup(atom);
 
   integrate.setup();
 
-  //force->setup();
+  // force->setup();
 
   thermo.setup(atom.box.xprd * atom.box.yprd * atom.box.zprd / atom.natoms, integrate, atom, units);
 
-  MMD_float* x = atom.create_2d_MMD_float_array(atom.natoms, PAD);
-  MMD_float* v = atom.create_2d_MMD_float_array(atom.natoms, PAD);
+  MMD_float *x = atom.create_2d_MMD_float_array(atom.natoms, PAD);
+  MMD_float *v = atom.create_2d_MMD_float_array(atom.natoms, PAD);
 
   int atomflag = 0;
   int tmp;
 
-  while(strlen(keyword)) {
-    if(strcmp(keyword, "Atoms") == 0) {
+  while(strlen(keyword))
+  {
+    if(strcmp(keyword, "Atoms") == 0)
+    {
       read_lammps_atoms(atom, x);
       atomflag = 1;
-    } else if(strcmp(keyword, "Velocities") == 0) {
-      if(atomflag == 0) printf("Must read Atoms before Velocities\n");
+    }
+    else if(strcmp(keyword, "Velocities") == 0)
+    {
+      if(atomflag == 0)
+        printf("Must read Atoms before Velocities\n");
 
       read_lammps_velocities(atom, v);
-    } else if(strcmp(keyword, "Masses") == 0) {
+    }
+    else if(strcmp(keyword, "Masses") == 0)
+    {
       fgets(line, MAXLINE, fp);
 
-#if PRECISION==1
-        sscanf(line, "%i %g", &tmp, &atom.mass);
+#if PRECISION == 1
+      sscanf(line, "%i %g", &tmp, &atom.mass);
 #else
-        sscanf(line, "%i %lg", &tmp, &atom.mass);
+      sscanf(line, "%i %lg", &tmp, &atom.mass);
 #endif
     }
 
     read_lammps_parse_keyword(0);
   }
 
-  for(int i = 0; i < atom.natoms; i++) {
-    if(x[i * PAD + 0] >= atom.box.xlo && x[i * PAD + 0] < atom.box.xhi &&
-        x[i * PAD + 1] >= atom.box.ylo && x[i * PAD + 1] < atom.box.yhi &&
-        x[i * PAD + 2] >= atom.box.zlo && x[i * PAD + 2] < atom.box.zhi)
+  for(int i = 0; i < atom.natoms; i++)
+  {
+    if(x[i * PAD + 0] >= atom.box.xlo && x[i * PAD + 0] < atom.box.xhi && x[i * PAD + 1] >= atom.box.ylo && x[i * PAD + 1] < atom.box.yhi && x[i * PAD + 2] >= atom.box.zlo && x[i * PAD + 2] < atom.box.zhi)
       atom.addatom(x[i * PAD + 0], x[i * PAD + 1], x[i * PAD + 2], v[i * PAD + 0], v[i * PAD + 1], v[i * PAD + 2]);
   }
 
@@ -290,8 +323,10 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
   int natoms;
   MPI_Allreduce(&atom.nlocal, &natoms, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-  if(natoms != atom.natoms) {
-    if(me == 0) printf("Created incorrect # of atoms\n");
+  if(natoms != atom.natoms)
+  {
+    if(me == 0)
+      printf("Created incorrect # of atoms\n");
 
     return 1;
   }
@@ -305,9 +340,9 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
 void create_box(Atom &atom, int nx, int ny, int nz, double rho)
 {
   double lattice = pow((4.0 / rho), (1.0 / 3.0));
-  atom.box.xprd = nx * lattice;
-  atom.box.yprd = ny * lattice;
-  atom.box.zprd = nz * lattice;
+  atom.box.xprd  = nx * lattice;
+  atom.box.yprd  = ny * lattice;
+  atom.box.zprd  = nz * lattice;
 }
 
 /* initialize atoms on fcc lattice in parallel fashion */
@@ -323,12 +358,12 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
      insure loop bounds do not exceed nx,ny,nz */
 
   double alat = pow((4.0 / rho), (1.0 / 3.0));
-  int ilo = static_cast<int>(atom.box.xlo / (0.5 * alat) - 1);
-  int ihi = static_cast<int>(atom.box.xhi / (0.5 * alat) + 1);
-  int jlo = static_cast<int>(atom.box.ylo / (0.5 * alat) - 1);
-  int jhi = static_cast<int>(atom.box.yhi / (0.5 * alat) + 1);
-  int klo = static_cast<int>(atom.box.zlo / (0.5 * alat) - 1);
-  int khi = static_cast<int>(atom.box.zhi / (0.5 * alat) + 1);
+  int    ilo  = static_cast<int>(atom.box.xlo / (0.5 * alat) - 1);
+  int    ihi  = static_cast<int>(atom.box.xhi / (0.5 * alat) + 1);
+  int    jlo  = static_cast<int>(atom.box.ylo / (0.5 * alat) - 1);
+  int    jhi  = static_cast<int>(atom.box.yhi / (0.5 * alat) + 1);
+  int    klo  = static_cast<int>(atom.box.zlo / (0.5 * alat) - 1);
+  int    khi  = static_cast<int>(atom.box.zhi / (0.5 * alat) + 1);
 
   ilo = MAX(ilo, 0);
   ihi = MIN(ihi, 2 * nx - 1);
@@ -345,47 +380,49 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
      exercise RNG between calls to avoid correlations in adjacent atoms */
 
   double xtmp, ytmp, ztmp, vx, vy, vz;
-  int i, j, k, m, n;
-  int sx = 0;
-  int sy = 0;
-  int sz = 0;
-  int ox = 0;
-  int oy = 0;
-  int oz = 0;
-  int subboxdim = 8;
+  int    i, j, k, m, n;
+  int    sx        = 0;
+  int    sy        = 0;
+  int    sz        = 0;
+  int    ox        = 0;
+  int    oy        = 0;
+  int    oz        = 0;
+  int    subboxdim = 8;
 
   int iflag = 0;
 
-  while(oz * subboxdim <= khi) {
+  while(oz * subboxdim <= khi)
+  {
     k = oz * subboxdim + sz;
     j = oy * subboxdim + sy;
     i = ox * subboxdim + sx;
 
-    if(iflag) continue;
+    if(iflag)
+      continue;
 
-    if(((i + j + k) % 2 == 0) &&
-        (i >= ilo) && (i <= ihi) &&
-        (j >= jlo) && (j <= jhi) &&
-        (k >= klo) && (k <= khi)) {
+    if(((i + j + k) % 2 == 0) && (i >= ilo) && (i <= ihi) && (j >= jlo) && (j <= jhi) && (k >= klo) && (k <= khi))
+    {
 
       xtmp = 0.5 * alat * i;
       ytmp = 0.5 * alat * j;
       ztmp = 0.5 * alat * k;
 
-      if(xtmp >= atom.box.xlo && xtmp < atom.box.xhi &&
-          ytmp >= atom.box.ylo && ytmp < atom.box.yhi &&
-          ztmp >= atom.box.zlo && ztmp < atom.box.zhi) {
+      if(xtmp >= atom.box.xlo && xtmp < atom.box.xhi && ytmp >= atom.box.ylo && ytmp < atom.box.yhi && ztmp >= atom.box.zlo && ztmp < atom.box.zhi)
+      {
         n = k * (2 * ny) * (2 * nx) + j * (2 * nx) + i + 1;
 
-        for(m = 0; m < 5; m++) random(&n);
+        for(m = 0; m < 5; m++)
+          random(&n);
 
         vx = random(&n);
 
-        for(m = 0; m < 5; m++) random(&n);
+        for(m = 0; m < 5; m++)
+          random(&n);
 
         vy = random(&n);
 
-        for(m = 0; m < 5; m++) random(&n);
+        for(m = 0; m < 5; m++)
+          random(&n);
 
         vz = random(&n);
 
@@ -395,27 +432,32 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
 
     sx++;
 
-    if(sx == subboxdim) {
+    if(sx == subboxdim)
+    {
       sx = 0;
       sy++;
     }
 
-    if(sy == subboxdim) {
+    if(sy == subboxdim)
+    {
       sy = 0;
       sz++;
     }
 
-    if(sz == subboxdim) {
+    if(sz == subboxdim)
+    {
       sz = 0;
       ox++;
     }
 
-    if(ox * subboxdim > ihi) {
+    if(ox * subboxdim > ihi)
+    {
       ox = 0;
       oy++;
     }
 
-    if(oy * subboxdim > jhi) {
+    if(oy * subboxdim > jhi)
+    {
       oy = 0;
       oz++;
     }
@@ -429,8 +471,10 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
   int iflagall;
   MPI_Allreduce(&iflag, &iflagall, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
-  if(iflagall) {
-    if(me == 0) printf("No memory for atoms\n");
+  if(iflagall)
+  {
+    if(me == 0)
+      printf("No memory for atoms\n");
 
     return 1;
   }
@@ -440,8 +484,10 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
   int natoms;
   MPI_Allreduce(&atom.nlocal, &natoms, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-  if(natoms != atom.natoms) {
-    if(me == 0) printf("Created incorrect # of atoms\n");
+  if(natoms != atom.natoms)
+  {
+    if(me == 0)
+      printf("Created incorrect # of atoms\n");
 
     return 1;
   }
@@ -461,7 +507,8 @@ void create_velocity(double t_request, Atom &atom, Thermo &thermo)
   double vytot = 0.0;
   double vztot = 0.0;
 
-  for(i = 0; i < atom.nlocal; i++) {
+  for(i = 0; i < atom.nlocal; i++)
+  {
     vxtot += atom.v[i * PAD + 0];
     vytot += atom.v[i * PAD + 1];
     vztot += atom.v[i * PAD + 2];
@@ -475,18 +522,20 @@ void create_velocity(double t_request, Atom &atom, Thermo &thermo)
   MPI_Allreduce(&vztot, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   vztot = tmp / atom.natoms;
 
-  for(i = 0; i < atom.nlocal; i++) {
+  for(i = 0; i < atom.nlocal; i++)
+  {
     atom.v[i * PAD + 0] -= vxtot;
     atom.v[i * PAD + 1] -= vytot;
     atom.v[i * PAD + 2] -= vztot;
   }
 
   /* rescale velocities, including old ones */
-  thermo.t_act = 0;
-  double t = thermo.temperature(atom);
+  thermo.t_act  = 0;
+  double t      = thermo.temperature(atom);
   double factor = sqrt(t_request / t);
 
-  for(i = 0; i < atom.nlocal; i++) {
+  for(i = 0; i < atom.nlocal; i++)
+  {
     atom.v[i * PAD + 0] *= factor;
     atom.v[i * PAD + 1] *= factor;
     atom.v[i * PAD + 2] *= factor;
@@ -497,20 +546,21 @@ void create_velocity(double t_request, Atom &atom, Thermo &thermo)
 
 #define IA 16807
 #define IM 2147483647
-#define AM (1.0/IM)
+#define AM (1.0 / IM)
 #define IQ 127773
 #define IR 2836
 #define MASK 123459876
 
-double random(int* idum)
+double random(int *idum)
 {
-  int k;
+  int    k;
   double ans;
 
-  k = (*idum) / IQ;
+  k     = (*idum) / IQ;
   *idum = IA * (*idum - k * IQ) - IR * k;
 
-  if(*idum < 0) *idum += IM;
+  if(*idum < 0)
+    *idum += IM;
 
   ans = AM * (*idum);
   return ans;

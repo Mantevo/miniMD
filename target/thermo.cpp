@@ -29,55 +29,61 @@
    Please read the accompanying README and LICENSE files.
    ---------------------------------------------------------------------- */
 
-#include "stdio.h"
-#include "stdlib.h"
-#include "mpi.h"
+#include "thermo.h"
 #include "force.h"
 #include "integrate.h"
-#include "thermo.h"
+#include "mpi.h"
+#include "stdio.h"
+#include "stdlib.h"
 
 Thermo::Thermo() {}
 Thermo::~Thermo() {}
 
 void Thermo::setup(MMD_float rho_in, Integrate &integrate, Atom &atom, int units)
 {
-  rho = rho_in;
+  rho    = rho_in;
   ntimes = integrate.ntimes;
 
   MMD_int maxstat;
 
-  if(nstat == 0) maxstat = 2;
-  else maxstat = ntimes / nstat + 2;
+  if(nstat == 0)
+    maxstat = 2;
+  else
+    maxstat = ntimes / nstat + 2;
 
-  steparr = (MMD_int*) malloc(maxstat * sizeof(MMD_int));
-  tmparr = (MMD_float*) malloc(maxstat * sizeof(MMD_float));
-  engarr = (MMD_float*) malloc(maxstat * sizeof(MMD_float));
-  prsarr = (MMD_float*) malloc(maxstat * sizeof(MMD_float));
+  steparr = ( MMD_int * )malloc(maxstat * sizeof(MMD_int));
+  tmparr  = ( MMD_float * )malloc(maxstat * sizeof(MMD_float));
+  engarr  = ( MMD_float * )malloc(maxstat * sizeof(MMD_float));
+  prsarr  = ( MMD_float * )malloc(maxstat * sizeof(MMD_float));
 
-  if(units == LJ) {
-    mvv2e = 1.0;
+  if(units == LJ)
+  {
+    mvv2e     = 1.0;
     dof_boltz = (atom.natoms * 3 - 3);
-    t_scale = mvv2e / dof_boltz;
-    p_scale = 1.0 / 3 / atom.box.xprd / atom.box.yprd / atom.box.zprd;
-    e_scale = 0.5;
-  } else if(units == METAL) {
-    mvv2e = 1.036427e-04;
+    t_scale   = mvv2e / dof_boltz;
+    p_scale   = 1.0 / 3 / atom.box.xprd / atom.box.yprd / atom.box.zprd;
+    e_scale   = 0.5;
+  }
+  else if(units == METAL)
+  {
+    mvv2e     = 1.036427e-04;
     dof_boltz = (atom.natoms * 3 - 3) * 8.617343e-05;
-    t_scale = mvv2e / dof_boltz;
-    p_scale = 1.602176e+06 / 3 / atom.box.xprd / atom.box.yprd / atom.box.zprd;
-    e_scale = 524287.985533;//16.0;
+    t_scale   = mvv2e / dof_boltz;
+    p_scale   = 1.602176e+06 / 3 / atom.box.xprd / atom.box.yprd / atom.box.zprd;
+    e_scale   = 524287.985533; // 16.0;
     integrate.dtforce /= mvv2e;
-
   }
 }
 
-void Thermo::compute(MMD_int iflag, Atom &atom, Neighbor &neighbor, Force* force, Timer &timer, Comm &comm)
+void Thermo::compute(MMD_int iflag, Atom &atom, Neighbor &neighbor, Force *force, Timer &timer, Comm &comm)
 {
   MMD_float t, eng, p;
 
-  if(iflag > 0 && iflag % nstat) return;
+  if(iflag > 0 && iflag % nstat)
+    return;
 
-  if(iflag == -1 && nstat > 0 && ntimes % nstat == 0) return;
+  if(iflag == -1 && nstat > 0 && ntimes % nstat == 0)
+    return;
 
   t_act = 0;
   e_act = 0;
@@ -91,21 +97,24 @@ void Thermo::compute(MMD_int iflag, Atom &atom, Neighbor &neighbor, Force* force
 
   MMD_int istep = iflag;
 
-  if(iflag == -1) istep = ntimes;
+  if(iflag == -1)
+    istep = ntimes;
 
-  if(iflag == 0) mstat = 0;
+  if(iflag == 0)
+    mstat = 0;
 
   steparr[mstat] = istep;
-  tmparr[mstat] = t;
-  engarr[mstat] = eng;
-  prsarr[mstat] = p;
+  tmparr[mstat]  = t;
+  engarr[mstat]  = eng;
+  prsarr[mstat]  = p;
 
   mstat++;
 
   double oldtime = timer.array[TIME_TOTAL];
   timer.barrier_stop(TIME_TOTAL);
 
-  if(threads->mpi_me == 0) {
+  if(threads->mpi_me == 0)
+  {
     fprintf(stdout, "%i %e %e %e %6.3lf\n", istep, t, eng, p, istep == 0 ? 0.0 : timer.array[TIME_TOTAL]);
   }
 
@@ -114,11 +123,12 @@ void Thermo::compute(MMD_int iflag, Atom &atom, Neighbor &neighbor, Force* force
 
 /* reduced potential energy */
 
-MMD_float Thermo::energy(Atom &atom, Neighbor &neighbor, Force* force)
+MMD_float Thermo::energy(Atom &atom, Neighbor &neighbor, Force *force)
 {
   e_act = force->eng_vdwl;
 
-  if(neighbor.halfneigh) {
+  if(neighbor.halfneigh)
+  {
     e_act *= 2.0;
   }
 
@@ -137,16 +147,17 @@ MMD_float Thermo::energy(Atom &atom, Neighbor &neighbor, Force* force)
 
 MMD_float Thermo::temperature(Atom &atom)
 {
-  MMD_int i;
+  MMD_int   i;
   MMD_float vx, vy, vz;
 
   t_act = 0;
 
-  MMD_float* v = atom.v;
+  MMD_float *v = atom.v;
 
   MMD_float t = 0.0;
   #pragma omp parallel for reduction(+:t)
-  for(i = 0; i < atom.nlocal; i++) {
+  for(i = 0; i < atom.nlocal; i++)
+  {
     vx = v[i * PAD + 0];
     vy = v[i * PAD + 1];
     vz = v[i * PAD + 2];
@@ -168,7 +179,7 @@ MMD_float Thermo::temperature(Atom &atom)
    virial = Fi dot Ri summed over own and ghost atoms, since PBC info is
    stored correctly in force array before reverse_communicate is performed */
 
-MMD_float Thermo::pressure(MMD_float t, Force* force)
+MMD_float Thermo::pressure(MMD_float t, Force *force)
 {
   p_act = force->virial;
 
@@ -179,8 +190,6 @@ MMD_float Thermo::pressure(MMD_float t, Force* force)
   else
     MPI_Allreduce(&p_act, &virial, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-  //printf("Pres: %e %e %e %e\n",t,dof_boltz,virial,p_scale);
+  // printf("Pres: %e %e %e %e\n",t,dof_boltz,virial,p_scale);
   return (t * dof_boltz + virial) * p_scale;
 }
-
-

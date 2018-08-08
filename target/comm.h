@@ -38,63 +38,63 @@
 
 class Comm
 {
-  public:
-    Comm();
-    ~Comm();
-    int setup(MMD_float, Atom &);
-    void communicate(Atom &);
-    void reverse_communicate(Atom &);
-    void exchange(Atom &);
-    void exchange_all(Atom &);
-    void borders(Atom &);
-    void growsend(int);
-    void growrecv(int);
-    void growlist(int, int);
+public:
+  Comm();
+  ~Comm();
+  int  setup(MMD_float, Atom &);
+  void communicate(Atom &);
+  void reverse_communicate(Atom &);
+  void exchange(Atom &);
+  void exchange_all(Atom &);
+  void borders(Atom &);
+  void growsend(int);
+  void growrecv(int);
+  void growlist(int, int);
 
-  public:
-    int me;                           // my proc ID
-    int nswap;                        // # of swaps to perform
-    int* pbc_any;                     // whether any PBC on this swap
-    int* pbc_flagx;                   // PBC correction in x for this swap
-    int* pbc_flagy;                   // same in y
-    int* pbc_flagz;                   // same in z
-    int* sendnum, *recvnum;           // # of atoms to send/recv in each swap
-    int* comm_send_size;              // # of values to send in each comm
-    int* comm_recv_size;              // # of values to recv in each comm
-    int* reverse_send_size;           // # of values to send in each reverse
-    int* reverse_recv_size;           // # of values to recv in each reverse
-    int* sendproc, *recvproc;         // proc to send/recv with at each swap
-    int* sendproc_exc, *recvproc_exc; // proc to send/recv with at each swap for safe exchange
+public:
+  int  me;                          // my proc ID
+  int  nswap;                       // # of swaps to perform
+  int *pbc_any;                     // whether any PBC on this swap
+  int *pbc_flagx;                   // PBC correction in x for this swap
+  int *pbc_flagy;                   // same in y
+  int *pbc_flagz;                   // same in z
+  int *sendnum, *recvnum;           // # of atoms to send/recv in each swap
+  int *comm_send_size;              // # of values to send in each comm
+  int *comm_recv_size;              // # of values to recv in each comm
+  int *reverse_send_size;           // # of values to send in each reverse
+  int *reverse_recv_size;           // # of values to recv in each reverse
+  int *sendproc, *recvproc;         // proc to send/recv with at each swap
+  int *sendproc_exc, *recvproc_exc; // proc to send/recv with at each swap for safe exchange
 
-    int* firstrecv;                   // where to put 1st recv atom in each swap
-    int** sendlist;                   // list of atoms to send in each swap
-    int* maxsendlist;
+  int * firstrecv; // where to put 1st recv atom in each swap
+  int **sendlist;  // list of atoms to send in each swap
+  int * maxsendlist;
 
-    MMD_float* buf_send;                 // send buffer for all comm
-    MMD_float* buf_recv;                 // recv buffer for all comm
-    MMD_float* buf;
-    int maxsend;
-    int maxrecv;
+  MMD_float *buf_send; // send buffer for all comm
+  MMD_float *buf_recv; // recv buffer for all comm
+  MMD_float *buf;
+  int        maxsend;
+  int        maxrecv;
 
-    int procneigh[3][2];              // my 6 proc neighbors
-    int procgrid[3];                  // # of procs in each dim
-    int need[3];                      // how many procs away needed in each dim
-    MMD_float* slablo, *slabhi;          // bounds of slabs to send to other procs
+  int        procneigh[3][2]; // my 6 proc neighbors
+  int        procgrid[3];     // # of procs in each dim
+  int        need[3];         // how many procs away needed in each dim
+  MMD_float *slablo, *slabhi; // bounds of slabs to send to other procs
 
-    ThreadData* threads;		    //
+  ThreadData *threads; //
 
-    int check_safeexchange;           // if sets give warnings if an atom moves further than subdomain size
-    int do_safeexchange;		    // exchange atoms with all subdomains within neighbor cutoff
-    Timer* timer;
+  int    check_safeexchange; // if sets give warnings if an atom moves further than subdomain size
+  int    do_safeexchange;    // exchange atoms with all subdomains within neighbor cutoff
+  Timer *timer;
 
-    int copy_size;
-    int* send_flag;
-    int maxnlocal;
-    int nrecv_atoms;
+  int  copy_size;
+  int *send_flag;
+  int  maxnlocal;
+  int  nrecv_atoms;
 
-    int* exc_sendlist;
-    int* exc_copylist;
-    int maxexc;
+  int *exc_sendlist;
+  int *exc_copylist;
+  int  maxexc;
 };
 
 #endif

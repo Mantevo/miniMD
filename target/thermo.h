@@ -32,42 +32,47 @@
 #ifndef THERMO_H
 #define THERMO_H
 
-enum units {LJ, METAL};
+enum units
+{
+  LJ,
+  METAL
+};
 #include "atom.h"
-#include "neighbor.h"
-#include "force.h"
-#include "timer.h"
 #include "comm.h"
+#include "force.h"
+#include "neighbor.h"
 #include "threadData.h"
+#include "timer.h"
 #include "types.h"
 
 class Integrate;
 
 class Thermo
 {
-  public:
-    MMD_int nstat;
-    MMD_int mstat;
-    MMD_int ntimes;
-    MMD_int* steparr;
-    MMD_float* tmparr;
-    MMD_float* engarr;
-    MMD_float* prsarr;
+public:
+  MMD_int    nstat;
+  MMD_int    mstat;
+  MMD_int    ntimes;
+  MMD_int *  steparr;
+  MMD_float *tmparr;
+  MMD_float *engarr;
+  MMD_float *prsarr;
 
-    Thermo();
-    ~Thermo();
-    void setup(MMD_float, Integrate &integrate, Atom &atom, MMD_int);
-    MMD_float temperature(Atom &);
-    MMD_float energy(Atom &, Neighbor &, Force*);
-    MMD_float pressure(MMD_float, Force*);
-    void compute(MMD_int, Atom &, Neighbor &, Force*, Timer &, Comm &);
+  Thermo();
+  ~Thermo();
+  void      setup(MMD_float, Integrate &integrate, Atom &atom, MMD_int);
+  MMD_float temperature(Atom &);
+  MMD_float energy(Atom &, Neighbor &, Force *);
+  MMD_float pressure(MMD_float, Force *);
+  void      compute(MMD_int, Atom &, Neighbor &, Force *, Timer &, Comm &);
 
-    MMD_float t_act, p_act, e_act;
-    MMD_float t_scale, e_scale, p_scale, mvv2e, dof_boltz;
+  MMD_float t_act, p_act, e_act;
+  MMD_float t_scale, e_scale, p_scale, mvv2e, dof_boltz;
 
-    ThreadData* threads;
-  private:
-    MMD_float rho;
+  ThreadData *threads;
+
+private:
+  MMD_float rho;
 };
 
 #endif

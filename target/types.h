@@ -32,12 +32,16 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-enum ForceStyle {FORCELJ, FORCEEAM};
+enum ForceStyle
+{
+  FORCELJ,
+  FORCEEAM
+};
 
 #ifndef PRECISION
 #define PRECISION 2
 #endif
-#if PRECISION==1
+#if PRECISION == 1
 typedef float MMD_float;
 #else
 typedef double MMD_float;

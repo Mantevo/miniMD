@@ -29,62 +29,63 @@
    Please read the accompanying README and LICENSE files.
    ---------------------------------------------------------------------- */
 
+#include "mpi.h"
 #include "stdio.h"
 #include "stdlib.h"
-#include "mpi.h"
 
-#include "variant.h"
-#include "ljs.h"
 #include "atom.h"
-#include "neighbor.h"
-#include "integrate.h"
-#include "thermo.h"
 #include "comm.h"
-#include "timer.h"
-#include "threadData.h"
-#include "string.h"
-#include "openmp.h"
 #include "force.h"
+#include "integrate.h"
+#include "ljs.h"
+#include "neighbor.h"
+#include "openmp.h"
+#include "string.h"
+#include "thermo.h"
+#include "threadData.h"
+#include "timer.h"
+#include "variant.h"
 
 #define MAXLINE 256
 
-int input(In &, const char*);
+int  input(In &, const char *);
 void create_box(Atom &, int, int, int, double);
-int create_atoms(Atom &, int, int, int, double);
+int  create_atoms(Atom &, int, int, int, double);
 void create_velocity(double, Atom &, Thermo &);
-void output(In &, Atom &, Force*, Neighbor &, Comm &,
-            Thermo &, Integrate &, Timer &, int);
-int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &integrate, Thermo &thermo, char* file, int units);
+void output(In &, Atom &, Force *, Neighbor &, Comm &, Thermo &, Integrate &, Timer &, int);
+int  read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &integrate, Thermo &thermo, char *file, int units);
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
   In in;
-  in.datafile = NULL;
-  int me = 0;                   //local MPI rank
-  int nprocs = 1;               //number of MPI ranks
-  int num_threads = 1;		//number of OpenMP threads
-  int num_steps = -1;           //number of timesteps (if -1 use value from lj.in)
-  int system_size = -1;         //size of the system (if -1 use value from lj.in)
-  int nx = -1;
-  int ny = -1;
-  int nz = -1;
-  int check_safeexchange = 0;   //if 1 complain if atom moves further than 1 subdomain length between exchanges
-  int do_safeexchange = 0;      //if 1 use safe exchange mode [allows exchange over multiple subdomains]
-  int use_sse = 0;              //setting for SSE variant of miniMD only
-  int screen_yaml = 0;          //print yaml output to screen also
-  int yaml_output = 0;          //print yaml output
-  int halfneigh = 1;            //1: use half neighborlist; 0: use full neighborlist; -1: use original miniMD version half neighborlist force
-  int teams = 1;
-  int device = 0;
-  int neighbor_size = -1;
-  char* input_file = NULL;
-  int ghost_newton = 1;
-  int sort = -1;
-  int ntypes = 4;
-  int privatize = 0;            // 1: privatize force array; 0: use atomics
+  in.datafile              = NULL;
+  int   me                 = 0;  // local MPI rank
+  int   nprocs             = 1;  // number of MPI ranks
+  int   num_threads        = 1;  // number of OpenMP threads
+  int   num_steps          = -1; // number of timesteps (if -1 use value from lj.in)
+  int   system_size        = -1; // size of the system (if -1 use value from lj.in)
+  int   nx                 = -1;
+  int   ny                 = -1;
+  int   nz                 = -1;
+  int   check_safeexchange = 0; // if 1 complain if atom moves further than 1 subdomain length between exchanges
+  int   do_safeexchange    = 0; // if 1 use safe exchange mode [allows exchange over multiple subdomains]
+  int   use_sse            = 0; // setting for SSE variant of miniMD only
+  int   screen_yaml        = 0; // print yaml output to screen also
+  int   yaml_output        = 0; // print yaml output
+  int   halfneigh          = 1; // 1: use half neighborlist; 0: use full neighborlist; -1: use original miniMD version half neighborlist force
+  int   teams              = 1;
+  int   device             = 0;
+  int   neighbor_size      = -1;
+  char *input_file         = NULL;
+  int   ghost_newton       = 1;
+  int   sort               = -1;
+  int   ntypes             = 4;
+  int   privatize          = 0; // 1: privatize force array; 0: use atomics
 
-  for(int i = 0; i < argc; i++) {
-    if((strcmp(argv[i], "-i") == 0) || (strcmp(argv[i], "--input_file") == 0)) {
+  for(int i = 0; i < argc; i++)
+  {
+    if((strcmp(argv[i], "-i") == 0) || (strcmp(argv[i], "--input_file") == 0))
+    {
       input_file = argv[++i];
       continue;
     }
@@ -101,122 +102,147 @@ int main(int argc, char** argv)
   else
     error = input(in, input_file);
 
-  if(error) {
+  if(error)
+  {
     MPI_Finalize();
     exit(0);
   }
 
   srand(5413);
 
-  for(int i = 0; i < argc; i++) {
-    if((strcmp(argv[i], "-t") == 0) || (strcmp(argv[i], "--num_threads") == 0)) {
+  for(int i = 0; i < argc; i++)
+  {
+    if((strcmp(argv[i], "-t") == 0) || (strcmp(argv[i], "--num_threads") == 0))
+    {
       num_threads = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "--teams") == 0)) {
+    if((strcmp(argv[i], "--teams") == 0))
+    {
       teams = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-n") == 0) || (strcmp(argv[i], "--nsteps") == 0))  {
+    if((strcmp(argv[i], "-n") == 0) || (strcmp(argv[i], "--nsteps") == 0))
+    {
       num_steps = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-s") == 0) || (strcmp(argv[i], "--size") == 0)) {
+    if((strcmp(argv[i], "-s") == 0) || (strcmp(argv[i], "--size") == 0))
+    {
       system_size = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-nx") == 0)) {
+    if((strcmp(argv[i], "-nx") == 0))
+    {
       nx = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-ny") == 0)) {
+    if((strcmp(argv[i], "-ny") == 0))
+    {
       ny = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-nz") == 0)) {
+    if((strcmp(argv[i], "-nz") == 0))
+    {
       nz = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "--ntypes") == 0)) {
+    if((strcmp(argv[i], "--ntypes") == 0))
+    {
       ntypes = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-b") == 0) || (strcmp(argv[i], "--neigh_bins") == 0))  {
+    if((strcmp(argv[i], "-b") == 0) || (strcmp(argv[i], "--neigh_bins") == 0))
+    {
       neighbor_size = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "--half_neigh") == 0))  {
+    if((strcmp(argv[i], "--half_neigh") == 0))
+    {
       halfneigh = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-sse") == 0))  {
+    if((strcmp(argv[i], "-sse") == 0))
+    {
       use_sse = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "--check_exchange") == 0))  {
+    if((strcmp(argv[i], "--check_exchange") == 0))
+    {
       check_safeexchange = 1;
       continue;
     }
 
-    if((strcmp(argv[i], "--safe_exchange") == 0))  {
+    if((strcmp(argv[i], "--safe_exchange") == 0))
+    {
       do_safeexchange = 1;
       continue;
     }
 
-    if((strcmp(argv[i], "--sort") == 0))  {
+    if((strcmp(argv[i], "--sort") == 0))
+    {
       sort = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-o") == 0) || (strcmp(argv[i], "--yaml_output") == 0))  {
+    if((strcmp(argv[i], "-o") == 0) || (strcmp(argv[i], "--yaml_output") == 0))
+    {
       yaml_output = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "--yaml_screen") == 0))  {
+    if((strcmp(argv[i], "--yaml_screen") == 0))
+    {
       screen_yaml = 1;
       continue;
     }
 
-    if((strcmp(argv[i], "-f") == 0) || (strcmp(argv[i], "--data_file") == 0)) {
-      if(in.datafile == NULL) in.datafile = new char[1000];
+    if((strcmp(argv[i], "-f") == 0) || (strcmp(argv[i], "--data_file") == 0))
+    {
+      if(in.datafile == NULL)
+        in.datafile = new char[1000];
 
       strcpy(in.datafile, argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-u") == 0) || (strcmp(argv[i], "--units") == 0)) {
+    if((strcmp(argv[i], "-u") == 0) || (strcmp(argv[i], "--units") == 0))
+    {
       in.units = strcmp(argv[++i], "metal") == 0 ? 1 : 0;
       continue;
     }
 
-    if((strcmp(argv[i], "-p") == 0) || (strcmp(argv[i], "--force") == 0)) {
+    if((strcmp(argv[i], "-p") == 0) || (strcmp(argv[i], "--force") == 0))
+    {
       in.forcetype = strcmp(argv[++i], "eam") == 0 ? FORCEEAM : FORCELJ;
       continue;
     }
 
-    if((strcmp(argv[i], "-gn") == 0) || (strcmp(argv[i], "--ghost_newton") == 0)) {
+    if((strcmp(argv[i], "-gn") == 0) || (strcmp(argv[i], "--ghost_newton") == 0))
+    {
       ghost_newton = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-pr") == 0) || (strcmp(argv[i], "--privatize") == 0)) {
+    if((strcmp(argv[i], "-pr") == 0) || (strcmp(argv[i], "--privatize") == 0))
+    {
       privatize = atoi(argv[++i]);
       continue;
     }
 
-    if((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0)) {
+    if((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0))
+    {
       printf("\n-----------------------------------------------------------------------------------------------------------\n");
       printf("-------------" VARIANT_STRING "--------------------\n");
       printf("-------------------------------------------------------------------------------------------------------------\n\n");
@@ -271,69 +297,77 @@ int main(int argc, char** argv)
   }
 
 
-  Atom atom(ntypes);
-  Neighbor neighbor(ntypes);
-  Integrate integrate;
-  Thermo thermo;
-  Comm comm;
-  Timer timer;
+  Atom       atom(ntypes);
+  Neighbor   neighbor(ntypes);
+  Integrate  integrate;
+  Thermo     thermo;
+  Comm       comm;
+  Timer      timer;
   ThreadData threads;
 
-  Force* force = new Force(ntypes);
+  Force *force = new Force(ntypes);
 
-  threads.mpi_me = me;
+  threads.mpi_me          = me;
   threads.mpi_num_threads = nprocs;
-  threads.omp_me = 0;
+  threads.omp_me          = 0;
   threads.omp_num_threads = num_threads;
 
-  atom.threads = &threads;
-  comm.threads = &threads;
-  force->threads = &threads;
+  atom.threads      = &threads;
+  comm.threads      = &threads;
+  force->threads    = &threads;
   integrate.threads = &threads;
-  neighbor.threads = &threads;
-  thermo.threads = &threads;
+  neighbor.threads  = &threads;
+  thermo.threads    = &threads;
 
-  if(in.forcetype == FORCELJ) {
-    for(int i=0; i<ntypes*ntypes; i++) {
+  if(in.forcetype == FORCELJ)
+  {
+    for(int i = 0; i < ntypes * ntypes; i++)
+    {
       force->epsilon[i] = in.epsilon;
-      force->sigma[i] = in.sigma;
-      force->sigma6[i] = in.sigma*in.sigma*in.sigma*in.sigma*in.sigma*in.sigma;
+      force->sigma[i]   = in.sigma;
+      force->sigma6[i]  = in.sigma * in.sigma * in.sigma * in.sigma * in.sigma * in.sigma;
     }
   }
 
   neighbor.ghost_newton = ghost_newton;
-  atom.privatize = privatize;
+  atom.privatize        = privatize;
 
   omp_set_num_threads(num_threads);
 
-  neighbor.timer = &timer;
-  force->timer = &timer;
+  neighbor.timer          = &timer;
+  force->timer            = &timer;
   comm.check_safeexchange = check_safeexchange;
-  comm.do_safeexchange = do_safeexchange;
-  force->use_sse = use_sse;
-  neighbor.halfneigh = halfneigh;
+  comm.do_safeexchange    = do_safeexchange;
+  force->use_sse          = use_sse;
+  neighbor.halfneigh      = halfneigh;
 
-  if(halfneigh < 0) force->use_oldcompute = 1;
+  if(halfneigh < 0)
+    force->use_oldcompute = 1;
 
-  if(use_sse) {
+  if(use_sse)
+  {
 #ifdef VARIANT_REFERENCE
 
-    if(me == 0) printf("ERROR: Trying to run with -sse with miniMD reference version. Use SSE variant instead. Exiting.\n");
+    if(me == 0)
+      printf("ERROR: Trying to run with -sse with miniMD reference version. Use SSE variant instead. Exiting.\n");
 
     MPI_Finalize();
     exit(0);
 #endif
   }
 
-  if(num_steps > 0) in.ntimes = num_steps;
+  if(num_steps > 0)
+    in.ntimes = num_steps;
 
-  if(system_size > 0) {
+  if(system_size > 0)
+  {
     in.nx = system_size;
     in.ny = system_size;
     in.nz = system_size;
   }
 
-  if(nx > 0) {
+  if(nx > 0)
+  {
     in.nx = nx;
     if(ny > 0)
       in.ny = ny;
@@ -346,48 +380,57 @@ int main(int argc, char** argv)
       in.nz = nx;
   }
 
-  if(neighbor_size > 0) {
+  if(neighbor_size > 0)
+  {
     neighbor.nbinx = neighbor_size;
     neighbor.nbiny = neighbor_size;
     neighbor.nbinz = neighbor_size;
   }
 
-  if(neighbor_size < 0 && in.datafile == NULL) {
+  if(neighbor_size < 0 && in.datafile == NULL)
+  {
     MMD_float neighscale = 5.0 / 6.0;
-    neighbor.nbinx = neighscale * in.nx;
-    neighbor.nbiny = neighscale * in.ny;
-    neighbor.nbinz = neighscale * in.nz;
+    neighbor.nbinx       = neighscale * in.nx;
+    neighbor.nbiny       = neighscale * in.ny;
+    neighbor.nbinz       = neighscale * in.nz;
   }
 
   if(neighbor_size < 0 && in.datafile)
     neighbor.nbinx = -1;
 
-  if(neighbor.nbinx == 0) neighbor.nbinx = 1;
+  if(neighbor.nbinx == 0)
+    neighbor.nbinx = 1;
 
-  if(neighbor.nbiny == 0) neighbor.nbiny = 1;
+  if(neighbor.nbiny == 0)
+    neighbor.nbiny = 1;
 
-  if(neighbor.nbinz == 0) neighbor.nbinz = 1;
+  if(neighbor.nbinz == 0)
+    neighbor.nbinz = 1;
 
-  integrate.ntimes = in.ntimes;
-  integrate.dt = in.dt;
-  integrate.sort_every = sort>0?sort:(sort<0?in.neigh_every:0);
-  neighbor.every = in.neigh_every;
-  neighbor.cutneigh = in.neigh_cut;
-  force->cutforce = in.force_cut;
-  thermo.nstat = in.thermo_nstat;
+  integrate.ntimes     = in.ntimes;
+  integrate.dt         = in.dt;
+  integrate.sort_every = sort > 0 ? sort : (sort < 0 ? in.neigh_every : 0);
+  neighbor.every       = in.neigh_every;
+  neighbor.cutneigh    = in.neigh_cut;
+  force->cutforce      = in.force_cut;
+  thermo.nstat         = in.thermo_nstat;
 
 
   if(me == 0)
     printf("# Create System:\n");
 
-  if(in.datafile) {
+  if(in.datafile)
+  {
     read_lammps_data(atom, comm, neighbor, integrate, thermo, in.datafile, in.units);
     MMD_float volume = atom.box.xprd * atom.box.yprd * atom.box.zprd;
-    in.rho = 1.0 * atom.natoms / volume;
+    in.rho           = 1.0 * atom.natoms / volume;
     force->setup();
 
-    if(in.forcetype == FORCEEAM) atom.mass = force->mass;
-  } else {
+    if(in.forcetype == FORCEEAM)
+      atom.mass = force->mass;
+  }
+  else
+  {
     create_box(atom, in.nx, in.ny, in.nz, in.rho);
 
     comm.setup(neighbor.cutneigh, atom);
@@ -398,25 +441,27 @@ int main(int argc, char** argv)
 
     force->setup();
 
-    if(in.forcetype == FORCEEAM) atom.mass = force->mass;
+    if(in.forcetype == FORCEEAM)
+      atom.mass = force->mass;
 
     create_atoms(atom, in.nx, in.ny, in.nz, in.rho);
     thermo.setup(in.rho, integrate, atom, in.units);
 
     create_velocity(in.t_request, atom, thermo);
-
   }
 
-  if (in.forcetype == FORCEEAM)
+  if(in.forcetype == FORCEEAM)
   {
-    if(me == 0) fprintf(stderr, "ERROR: ForceEAM not supported by OpenMP 5.0 version\n");
+    if(me == 0)
+      fprintf(stderr, "ERROR: ForceEAM not supported by OpenMP 5.0 version\n");
     exit(EXIT_FAILURE);
   }
 
   if(me == 0)
     printf("# Done .... \n");
 
-  if(me == 0) {
+  if(me == 0)
+  {
     fprintf(stdout, "# " VARIANT_STRING " output ...\n");
     fprintf(stdout, "# Run Settings: \n");
     fprintf(stdout, "\t# MPI processes: %i\n", neighbor.threads->mpi_num_threads);
@@ -425,7 +470,7 @@ int main(int argc, char** argv)
     fprintf(stdout, "\t# Datafile: %s\n", in.datafile ? in.datafile : "None");
     fprintf(stdout, "# Physics Settings: \n");
     fprintf(stdout, "\t# ForceStyle: %s\n", in.forcetype == FORCELJ ? "LJ" : "EAM");
-    fprintf(stdout, "\t# Force Parameters: %2.2lf %2.2lf\n",in.epsilon,in.sigma);
+    fprintf(stdout, "\t# Force Parameters: %2.2lf %2.2lf\n", in.epsilon, in.sigma);
     fprintf(stdout, "\t# Units: %s\n", in.units == 0 ? "LJ" : "METAL");
     fprintf(stdout, "\t# Atoms: %i\n", atom.natoms);
     fprintf(stdout, "\t# Atom types: %i\n", atom.ntypes);
@@ -443,26 +488,28 @@ int main(int argc, char** argv)
     fprintf(stdout, "\t# Ghost Newton: %i\n", ghost_newton);
     fprintf(stdout, "\t# Use intrinsics: %i\n", force->use_sse);
     fprintf(stdout, "\t# Do safe exchange: %i\n", comm.do_safeexchange);
-    fprintf(stdout, "\t# Size of float: %i\n", (int) sizeof(MMD_float));
-    fprintf(stdout, "\t# Privatize forces: %i\n\n", (int) privatize);
+    fprintf(stdout, "\t# Size of float: %i\n", ( int )sizeof(MMD_float));
+    fprintf(stdout, "\t# Privatize forces: %i\n\n", ( int )privatize);
   }
 
   comm.exchange(atom);
-  if(sort>0)
+  if(sort > 0)
     atom.sort(neighbor);
   comm.borders(atom);
 
   force->evflag = 1;
   neighbor.build(atom);
-  
+
   force->compute(atom, neighbor, comm, me);
 
   if(neighbor.halfneigh && neighbor.ghost_newton)
     comm.reverse_communicate(atom);
 
-  if(me == 0) printf("# Starting dynamics ...\n");
+  if(me == 0)
+    printf("# Starting dynamics ...\n");
 
-  if(me == 0) printf("# Timestep T U P Time\n");
+  if(me == 0)
+    printf("# Timestep T U P Time\n");
 
   thermo.compute(0, atom, neighbor, force, timer, comm);
 
@@ -481,16 +528,13 @@ int main(int argc, char** argv)
 
   thermo.compute(-1, atom, neighbor, force, timer, comm);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     double time_other = timer.array[TIME_TOTAL] - timer.array[TIME_FORCE] - timer.array[TIME_NEIGH] - timer.array[TIME_COMM];
     printf("\n\n");
     printf("# Performance Summary:\n");
     printf("# MPI_proc OMP_threads nsteps natoms t_total t_force t_neigh t_comm t_other performance perf/thread grep_string t_extra\n");
-    printf("%i %i %i %i %lf %lf %lf %lf %lf %lf %lf PERF_SUMMARY %lf\n\n\n",
-           nprocs, num_threads, integrate.ntimes, natoms,
-           timer.array[TIME_TOTAL], timer.array[TIME_FORCE], timer.array[TIME_NEIGH], timer.array[TIME_COMM], time_other,
-           1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL], 1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL] / nprocs / num_threads, timer.array[TIME_TEST]);
-
+    printf("%i %i %i %i %lf %lf %lf %lf %lf %lf %lf PERF_SUMMARY %lf\n\n\n", nprocs, num_threads, integrate.ntimes, natoms, timer.array[TIME_TOTAL], timer.array[TIME_FORCE], timer.array[TIME_NEIGH], timer.array[TIME_COMM], time_other, 1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL], 1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL] / nprocs / num_threads, timer.array[TIME_TEST]);
   }
 
   if(yaml_output)
@@ -501,4 +545,3 @@ int main(int argc, char** argv)
   MPI_Finalize();
   return 0;
 }
-

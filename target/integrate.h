@@ -30,31 +30,31 @@
    ---------------------------------------------------------------------- */
 
 #include "atom.h"
+#include "comm.h"
 #include "force.h"
 #include "neighbor.h"
-#include "comm.h"
 #include "thermo.h"
-#include "timer.h"
 #include "threadData.h"
+#include "timer.h"
 
 class Integrate
 {
-  public:
-    MMD_float dt;
-    MMD_float dtforce;
-    MMD_int ntimes;
-    MMD_int nlocal, nmax;
-    MMD_float* x, *v, *f, *xold;
-    MMD_float mass;
+public:
+  MMD_float  dt;
+  MMD_float  dtforce;
+  MMD_int    ntimes;
+  MMD_int    nlocal, nmax;
+  MMD_float *x, *v, *f, *xold;
+  MMD_float  mass;
 
-    MMD_int sort_every;
+  MMD_int sort_every;
 
-    Integrate();
-    ~Integrate();
-    void setup();
-    void initialIntegrate();
-    void finalIntegrate();
-    void run(Atom &, Force*, Neighbor &, Comm &, Thermo &, Timer &);
+  Integrate();
+  ~Integrate();
+  void setup();
+  void initialIntegrate();
+  void finalIntegrate();
+  void run(Atom &, Force *, Neighbor &, Comm &, Thermo &, Timer &);
 
-    ThreadData* threads;
+  ThreadData *threads;
 };

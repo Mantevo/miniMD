@@ -40,36 +40,42 @@
 
 Neighbor::Neighbor(int ntypes_)
 {
-  ncalls = 0;
-  ntypes = ntypes_;
+  ncalls         = 0;
+  ntypes         = ntypes_;
   max_totalneigh = 0;
-  numneigh = NULL;
-  neighbors = NULL;
-  maxneighs = 100;
-  nmax = 0;
-  bincount = NULL;
-  bins = NULL;
-  atoms_per_bin = 8;
-  stencil = NULL;
-  threads = NULL;
-  halfneigh = 0;
-  ghost_newton = 1;
-  cutneighsq = new MMD_float[ntypes*ntypes];
+  numneigh       = NULL;
+  neighbors      = NULL;
+  maxneighs      = 100;
+  nmax           = 0;
+  bincount       = NULL;
+  bins           = NULL;
+  atoms_per_bin  = 8;
+  stencil        = NULL;
+  threads        = NULL;
+  halfneigh      = 0;
+  ghost_newton   = 1;
+  cutneighsq     = new MMD_float[ntypes * ntypes];
 }
 
 Neighbor::~Neighbor()
 {
 #ifdef ALIGNMALLOC
-  if(numneigh) _mm_free(numneigh);
-  if(neighbors) _mm_free(neighbors);
-#else 
-  if(numneigh) free(numneigh);
-  if(neighbors) free(neighbors);
+  if(numneigh)
+    _mm_free(numneigh);
+  if(neighbors)
+    _mm_free(neighbors);
+#else
+  if(numneigh)
+    free(numneigh);
+  if(neighbors)
+    free(neighbors);
 #endif
-  
-  if(bincount) free(bincount);
 
-  if(bins) free(bins);
+  if(bincount)
+    free(bincount);
+
+  if(bins)
+    free(bins);
 }
 
 /* binned neighbor list construction with full Newton's 3rd law
@@ -80,25 +86,30 @@ void Neighbor::build(Atom &atom)
 {
   ncalls++;
   const int nlocal = atom.nlocal;
-  const int nall = atom.nlocal + atom.nghost;
+  const int nall   = atom.nlocal + atom.nghost;
 
   /* extend atom arrays if necessary */
 
-  if(nall > nmax) {
+  if(nall > nmax)
+  {
     nmax = nall;
 #ifdef ALIGNMALLOC
-    if(numneigh) _mm_free(numneigh);
-    numneigh = (int*) _mm_malloc(nmax * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
-    if(neighbors) _mm_free(neighbors);	
-    neighbors = (int*) _mm_malloc(nmax * maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
+    if(numneigh)
+      _mm_free(numneigh);
+    numneigh = ( int * )_mm_malloc(nmax * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
+    if(neighbors)
+      _mm_free(neighbors);
+    neighbors = ( int * )_mm_malloc(nmax * maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
 #else
 
-    if(numneigh) free(numneigh);
+    if(numneigh)
+      free(numneigh);
 
-    if(neighbors) free(neighbors);
+    if(neighbors)
+      free(neighbors);
 
-    numneigh = (int*) malloc(nmax * sizeof(int));
-    neighbors = (int*) malloc(nmax * maxneighs * sizeof(int));
+    numneigh  = ( int * )malloc(nmax * sizeof(int));
+    neighbors = ( int * )malloc(nmax * maxneighs * sizeof(int));
 #endif
   }
 
@@ -109,20 +120,22 @@ void Neighbor::build(Atom &atom)
 
   /* loop over each atom, storing neighbors */
 
-  const MMD_float* const x = atom.x;
-  const int* const type = atom.type;
-  int ntypes = atom.ntypes;
+  const MMD_float *const x      = atom.x;
+  const int *const       type   = atom.type;
+  int                    ntypes = atom.ntypes;
 
   resize = 1;
 
-  while(resize) {
+  while(resize)
+  {
 
     int new_maxneighs = maxneighs;
-    resize = 0;
+    resize            = 0;
 
     #pragma omp parallel for
-    for(int i = 0; i < nlocal; i++) {
-      int* neighptr = &neighbors[i * maxneighs];
+    for(int i = 0; i < nlocal; i++)
+    {
+      int *neighptr = &neighbors[i * maxneighs];
       /* if necessary, goto next page and add pages */
 
       int n = 0;
@@ -134,78 +147,85 @@ void Neighbor::build(Atom &atom)
       const int type_i = type[i];
 
       /* loop over atoms in i's bin,
-      */
+       */
 
       const int ibin = coord2bin(xtmp, ytmp, ztmp);
 
-      for(int k = 0; k < nstencil; k++) {
+      for(int k = 0; k < nstencil; k++)
+      {
         const int jbin = ibin + stencil[k];
 
-        int* loc_bin = &bins[jbin * atoms_per_bin];
+        int *loc_bin = &bins[jbin * atoms_per_bin];
 
         if(ibin == jbin)
-          for(int m = 0; m < bincount[jbin]; m++) {
+          for(int m = 0; m < bincount[jbin]; m++)
+          {
             const int j = loc_bin[m];
 
-            //for same bin as atom i skip j if i==j and skip atoms "below and to the left" if using halfneighborlists
-            if(((j == i) || (halfneigh && !ghost_newton && (j < i)) ||
-                (halfneigh && ghost_newton && ((j < i) || ((j >= nlocal) &&
-                                               ((x[j * PAD + 2] < ztmp) || (x[j * PAD + 2] == ztmp && x[j * PAD + 1] < ytmp) ||
-                                                (x[j * PAD + 2] == ztmp && x[j * PAD + 1]  == ytmp && x[j * PAD + 0] < xtmp))))))) continue;
+            // for same bin as atom i skip j if i==j and skip atoms "below and to the left" if using halfneighborlists
+            if(((j == i) || (halfneigh && !ghost_newton && (j < i)) || (halfneigh && ghost_newton && ((j < i) || ((j >= nlocal) && ((x[j * PAD + 2] < ztmp) || (x[j * PAD + 2] == ztmp && x[j * PAD + 1] < ytmp) || (x[j * PAD + 2] == ztmp && x[j * PAD + 1] == ytmp && x[j * PAD + 0] < xtmp)))))))
+              continue;
 
-            const MMD_float delx = xtmp - x[j * PAD + 0];
-            const MMD_float dely = ytmp - x[j * PAD + 1];
-            const MMD_float delz = ztmp - x[j * PAD + 2];
-            const int type_j = type[j];
-            const MMD_float rsq = delx * delx + dely * dely + delz * delz;
+            const MMD_float delx   = xtmp - x[j * PAD + 0];
+            const MMD_float dely   = ytmp - x[j * PAD + 1];
+            const MMD_float delz   = ztmp - x[j * PAD + 2];
+            const int       type_j = type[j];
+            const MMD_float rsq    = delx * delx + dely * dely + delz * delz;
 
-            if((rsq <= cutneighsq[type_i*ntypes+type_j])) neighptr[n++] = j;
+            if((rsq <= cutneighsq[type_i * ntypes + type_j]))
+              neighptr[n++] = j;
           }
-        else {
-          for(int m = 0; m < bincount[jbin]; m++) {
+        else
+        {
+          for(int m = 0; m < bincount[jbin]; m++)
+          {
             const int j = loc_bin[m];
 
-            if(halfneigh && !ghost_newton && (j < i)) continue;
+            if(halfneigh && !ghost_newton && (j < i))
+              continue;
 
-            const MMD_float delx = xtmp - x[j * PAD + 0];
-            const MMD_float dely = ytmp - x[j * PAD + 1];
-            const MMD_float delz = ztmp - x[j * PAD + 2];
-            const int type_j = type[j];
-            const MMD_float rsq = delx * delx + dely * dely + delz * delz;
+            const MMD_float delx   = xtmp - x[j * PAD + 0];
+            const MMD_float dely   = ytmp - x[j * PAD + 1];
+            const MMD_float delz   = ztmp - x[j * PAD + 2];
+            const int       type_j = type[j];
+            const MMD_float rsq    = delx * delx + dely * dely + delz * delz;
 
-            if((rsq <= cutneighsq[type_i*ntypes+type_j])) neighptr[n++] = j;
+            if((rsq <= cutneighsq[type_i * ntypes + type_j]))
+              neighptr[n++] = j;
           }
         }
       }
 
       numneigh[i] = n;
 
-      if(n >= maxneighs) {
+      if(n >= maxneighs)
+      {
         resize = 1;
 
-        if(n >= new_maxneighs) new_maxneighs = n;
+        if(n >= new_maxneighs)
+          new_maxneighs = n;
       }
     }
 
-    if(resize) {
+    if(resize)
+    {
       maxneighs = new_maxneighs * 1.2;
 #ifdef ALIGNMALLOC
       _mm_free(neighbors);
-      neighbors = (int*) _mm_malloc(nmax* maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
+      neighbors = ( int * )_mm_malloc(nmax * maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
 #else
       free(neighbors);
-      neighbors = (int*) malloc(nmax* maxneighs * sizeof(int));
+      neighbors = ( int * )malloc(nmax * maxneighs * sizeof(int));
 #endif
     }
   }
-
 }
 
 void Neighbor::binatoms(Atom &atom, int count)
 {
-  const int nlocal = atom.nlocal;
-  const int nall = count<0?atom.nlocal + atom.nghost:count;
-  const MMD_float* const x = atom.x;
+  const int              nlocal = atom.nlocal;
+  const int              nall   = count < 0 ? atom.nlocal + atom.nghost : count;
+  const MMD_float *const x      = atom.x;
 
   xprd = atom.box.xprd;
   yprd = atom.box.yprd;
@@ -213,30 +233,36 @@ void Neighbor::binatoms(Atom &atom, int count)
 
   resize = 1;
 
-  while(resize > 0) {
+  while(resize > 0)
+  {
 
     resize = 0;
     #pragma omp parallel for
-    for(int i = 0; i < mbins; i++) bincount[i] = 0;
+    for(int i = 0; i < mbins; i++)
+      bincount[i] = 0;
 
     #pragma omp parallel for
-    for(int i = 0; i < nall; i++) {
+    for(int i = 0; i < nall; i++)
+    {
       const int ibin = coord2bin(x[i * PAD + 0], x[i * PAD + 1], x[i * PAD + 2]);
 
-      if(bincount[ibin] < atoms_per_bin) {
+      if(bincount[ibin] < atoms_per_bin)
+      {
         int ac;
         #pragma omp atomic capture
-        ac = bincount[ibin]++;
+        ac                              = bincount[ibin]++;
         bins[ibin * atoms_per_bin + ac] = i;
-      } else resize = 1;
+      }
+      else
+        resize = 1;
     }
 
-    if(resize) {
+    if(resize)
+    {
       free(bins);
       atoms_per_bin *= 2;
-      bins = (int*) malloc(mbins * atoms_per_bin * sizeof(int));
+      bins = ( int * )malloc(mbins * atoms_per_bin * sizeof(int));
     }
-
   }
 }
 
@@ -249,25 +275,25 @@ inline int Neighbor::coord2bin(MMD_float x, MMD_float y, MMD_float z)
   int ix, iy, iz;
 
   if(x >= xprd)
-    ix = (int)((x - xprd) * bininvx) + nbinx - mbinxlo;
+    ix = ( int )((x - xprd) * bininvx) + nbinx - mbinxlo;
   else if(x >= 0.0)
-    ix = (int)(x * bininvx) - mbinxlo;
+    ix = ( int )(x * bininvx) - mbinxlo;
   else
-    ix = (int)(x * bininvx) - mbinxlo - 1;
+    ix = ( int )(x * bininvx) - mbinxlo - 1;
 
   if(y >= yprd)
-    iy = (int)((y - yprd) * bininvy) + nbiny - mbinylo;
+    iy = ( int )((y - yprd) * bininvy) + nbiny - mbinylo;
   else if(y >= 0.0)
-    iy = (int)(y * bininvy) - mbinylo;
+    iy = ( int )(y * bininvy) - mbinylo;
   else
-    iy = (int)(y * bininvy) - mbinylo - 1;
+    iy = ( int )(y * bininvy) - mbinylo - 1;
 
   if(z >= zprd)
-    iz = (int)((z - zprd) * bininvz) + nbinz - mbinzlo;
+    iz = ( int )((z - zprd) * bininvz) + nbinz - mbinzlo;
   else if(z >= 0.0)
-    iz = (int)(z * bininvz) - mbinzlo;
+    iz = ( int )(z * bininvz) - mbinzlo;
   else
-    iz = (int)(z * bininvz) - mbinzlo - 1;
+    iz = ( int )(z * bininvz) - mbinzlo - 1;
 
   return (iz * mbiny * mbinx + iy * mbinx + ix + 1);
 }
@@ -290,13 +316,13 @@ stencil() = bin offsets in 1-d sense for stencil of surrounding bins
 
 int Neighbor::setup(Atom &atom)
 {
-  int i, j, k, nmax;
+  int       i, j, k, nmax;
   MMD_float coord;
-  int mbinxhi, mbinyhi, mbinzhi;
-  int nextx, nexty, nextz;
-  int num_omp_threads = threads->omp_num_threads;
+  int       mbinxhi, mbinyhi, mbinzhi;
+  int       nextx, nexty, nextz;
+  int       num_omp_threads = threads->omp_num_threads;
 
-  for(int i = 0; i<ntypes*ntypes; i++)
+  for(int i = 0; i < ntypes * ntypes; i++)
     cutneighsq[i] = cutneigh * cutneigh;
 
   xprd = atom.box.xprd;
@@ -321,47 +347,50 @@ int Neighbor::setup(Atom &atom)
   binsizex = xprd / nbinx;
   binsizey = yprd / nbiny;
   binsizez = zprd / nbinz;
-  bininvx = 1.0 / binsizex;
-  bininvy = 1.0 / binsizey;
-  bininvz = 1.0 / binsizez;
+  bininvx  = 1.0 / binsizex;
+  bininvy  = 1.0 / binsizey;
+  bininvz  = 1.0 / binsizez;
 
-  coord = atom.box.xlo - cutneigh - SMALL * xprd;
+  coord   = atom.box.xlo - cutneigh - SMALL * xprd;
   mbinxlo = static_cast<int>(coord * bininvx);
 
-  if(coord < 0.0) mbinxlo = mbinxlo - 1;
+  if(coord < 0.0)
+    mbinxlo = mbinxlo - 1;
 
-  coord = atom.box.xhi + cutneigh + SMALL * xprd;
+  coord   = atom.box.xhi + cutneigh + SMALL * xprd;
   mbinxhi = static_cast<int>(coord * bininvx);
 
-  coord = atom.box.ylo - cutneigh - SMALL * yprd;
+  coord   = atom.box.ylo - cutneigh - SMALL * yprd;
   mbinylo = static_cast<int>(coord * bininvy);
 
-  if(coord < 0.0) mbinylo = mbinylo - 1;
+  if(coord < 0.0)
+    mbinylo = mbinylo - 1;
 
-  coord = atom.box.yhi + cutneigh + SMALL * yprd;
+  coord   = atom.box.yhi + cutneigh + SMALL * yprd;
   mbinyhi = static_cast<int>(coord * bininvy);
 
-  coord = atom.box.zlo - cutneigh - SMALL * zprd;
+  coord   = atom.box.zlo - cutneigh - SMALL * zprd;
   mbinzlo = static_cast<int>(coord * bininvz);
 
-  if(coord < 0.0) mbinzlo = mbinzlo - 1;
+  if(coord < 0.0)
+    mbinzlo = mbinzlo - 1;
 
-  coord = atom.box.zhi + cutneigh + SMALL * zprd;
+  coord   = atom.box.zhi + cutneigh + SMALL * zprd;
   mbinzhi = static_cast<int>(coord * bininvz);
 
   /* extend bins by 1 in each direction to insure stencil coverage */
 
   mbinxlo = mbinxlo - 1;
   mbinxhi = mbinxhi + 1;
-  mbinx = mbinxhi - mbinxlo + 1;
+  mbinx   = mbinxhi - mbinxlo + 1;
 
   mbinylo = mbinylo - 1;
   mbinyhi = mbinyhi + 1;
-  mbiny = mbinyhi - mbinylo + 1;
+  mbiny   = mbinyhi - mbinylo + 1;
 
   mbinzlo = mbinzlo - 1;
   mbinzhi = mbinzhi + 1;
-  mbinz = mbinzhi - mbinzlo + 1;
+  mbinz   = mbinzhi - mbinzlo + 1;
 
   /*
   compute bin stencil of all bins whose closest corner to central bin
@@ -377,35 +406,44 @@ int Neighbor::setup(Atom &atom)
 
   nextx = static_cast<int>(cutneigh * bininvx);
 
-  if(nextx * binsizex < FACTOR * cutneigh) nextx++;
+  if(nextx * binsizex < FACTOR * cutneigh)
+    nextx++;
 
   nexty = static_cast<int>(cutneigh * bininvy);
 
-  if(nexty * binsizey < FACTOR * cutneigh) nexty++;
+  if(nexty * binsizey < FACTOR * cutneigh)
+    nexty++;
 
   nextz = static_cast<int>(cutneigh * bininvz);
 
-  if(nextz * binsizez < FACTOR * cutneigh) nextz++;
+  if(nextz * binsizez < FACTOR * cutneigh)
+    nextz++;
 
   nmax = (2 * nextz + 1) * (2 * nexty + 1) * (2 * nextx + 1);
 
-  if(stencil) free(stencil);
+  if(stencil)
+    free(stencil);
 
-  stencil = (int*) malloc(nmax * sizeof(int));
+  stencil = ( int * )malloc(nmax * sizeof(int));
 
-  nstencil = 0;
+  nstencil   = 0;
   int kstart = -nextz;
 
-  if(halfneigh && ghost_newton) {
-    kstart = 0;
+  if(halfneigh && ghost_newton)
+  {
+    kstart              = 0;
     stencil[nstencil++] = 0;
   }
 
-  for(k = kstart; k <= nextz; k++) {
-    for(j = -nexty; j <= nexty; j++) {
-      for(i = -nextx; i <= nextx; i++) {
+  for(k = kstart; k <= nextz; k++)
+  {
+    for(j = -nexty; j <= nexty; j++)
+    {
+      for(i = -nextx; i <= nextx; i++)
+      {
         if(!ghost_newton || !halfneigh || (k > 0 || j > 0 || (j == 0 && i > 0)))
-          if(bindist(i, j, k) < cutneighsq[0]) {
+          if(bindist(i, j, k) < cutneighsq[0])
+          {
             stencil[nstencil++] = k * mbiny * mbinx + j * mbinx + i;
           }
       }
@@ -414,13 +452,15 @@ int Neighbor::setup(Atom &atom)
 
   mbins = mbinx * mbiny * mbinz;
 
-  if(bincount) free(bincount);
+  if(bincount)
+    free(bincount);
 
-  bincount = (int*) malloc(mbins * num_omp_threads * sizeof(int));
+  bincount = ( int * )malloc(mbins * num_omp_threads * sizeof(int));
 
-  if(bins) free(bins);
+  if(bins)
+    free(bins);
 
-  bins = (int*) malloc(mbins * num_omp_threads * atoms_per_bin * sizeof(int));
+  bins = ( int * )malloc(mbins * num_omp_threads * atoms_per_bin * sizeof(int));
   return 0;
 }
 

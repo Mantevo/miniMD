@@ -31,4 +31,3 @@
 
 #define VARIANT_REFERENCE
 #define VARIANT_STRING "miniMD-Reference 2.0 (MPI+OpenMP)"
-

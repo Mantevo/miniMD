@@ -28,31 +28,30 @@
 
    Please read the accompanying README and LICENSE files.
    ---------------------------------------------------------------------- */
-#include "stdlib.h"
-#include "stdio.h"
+#include "atom.h"
+#include "comm.h"
+#include "force.h"
+#include "integrate.h"
+#include "ljs.h"
 #include "miniMD_math.h"
 #include "mpi.h"
-#include "ljs.h"
-#include "atom.h"
-#include "integrate.h"
-#include "force.h"
 #include "neighbor.h"
-#include "comm.h"
+#include "stdio.h"
+#include "stdlib.h"
 #include "thermo.h"
 #include "timer.h"
-#include <time.h>
 #include "variant.h"
+#include <time.h>
 
-void stats(int, double*, double*, double*, double*, int, int*);
+void stats(int, double *, double *, double *, double *, int, int *);
 
-void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
-            Thermo &thermo, Integrate &integrate, Timer &timer, int screen_yaml)
+void output(In &in, Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Thermo &thermo, Integrate &integrate, Timer &timer, int screen_yaml)
 {
-  int i, n;
-  int me, nprocs;
-  int histo[10];
+  int    i, n;
+  int    me, nprocs;
+  int    histo[10];
   double tmp, ave, max, min, total;
-  FILE* fp;
+  FILE * fp;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -66,49 +65,49 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
 
   int nlost = 0;
 
-  for(i = 0; i < atom.nlocal; i++) {
-    if(atom.x[i * PAD + 0] < 0.0 || atom.x[i * PAD + 0] >= atom.box.xprd ||
-        atom.x[i * PAD + 1] < 0.0 || atom.x[i * PAD + 1] >= atom.box.yprd ||
-        atom.x[i * PAD + 2] < 0.0 || atom.x[i * PAD + 2] >= atom.box.zprd) nlost++;
+  for(i = 0; i < atom.nlocal; i++)
+  {
+    if(atom.x[i * PAD + 0] < 0.0 || atom.x[i * PAD + 0] >= atom.box.xprd || atom.x[i * PAD + 1] < 0.0 || atom.x[i * PAD + 1] >= atom.box.yprd || atom.x[i * PAD + 2] < 0.0 || atom.x[i * PAD + 2] >= atom.box.zprd)
+      nlost++;
   }
 
   int nlostall;
   MPI_Allreduce(&nlost, &nlostall, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-  if(natoms != atom.natoms || nlostall > 0) {
-    if(me == 0) printf("Atom counts = %d %d %d\n",
-                         nlostall, natoms, atom.natoms);
+  if(natoms != atom.natoms || nlostall > 0)
+  {
+    if(me == 0)
+      printf("Atom counts = %d %d %d\n", nlostall, natoms, atom.natoms);
 
-    if(me == 0) printf("ERROR: Incorrect number of atoms\n");
+    if(me == 0)
+      printf("ERROR: Incorrect number of atoms\n");
 
     return;
   }
 
   /* long-range energy and pressure corrections Whats this???*/
 
-  double engcorr = 8.0 * 3.1415926 * in.rho *
-                   (1.0 / (9.0 * pow(force->cutforce, MMD_float(9.0))) - 1.0 / (3.0 * pow(force->cutforce, MMD_float(3.0))));
-  double prscorr = 8.0 * 3.1415926 * in.rho * in.rho *
-                   (4.0 / (9.0 * pow(force->cutforce, MMD_float(9.0))) - 2.0 / (3.0 * pow(force->cutforce, MMD_float(3.0))));
+  double engcorr = 8.0 * 3.1415926 * in.rho * (1.0 / (9.0 * pow(force->cutforce, MMD_float(9.0))) - 1.0 / (3.0 * pow(force->cutforce, MMD_float(3.0))));
+  double prscorr = 8.0 * 3.1415926 * in.rho * in.rho * (4.0 / (9.0 * pow(force->cutforce, MMD_float(9.0))) - 2.0 / (3.0 * pow(force->cutforce, MMD_float(3.0))));
 
   /* thermo output */
 
   double conserve;
 
-  if(me == 0) {
+  if(me == 0)
+  {
 
 
-    time_t general_time = time(NULL);
-    struct tm local_time = *localtime(&general_time);
-    char filename[256];
+    time_t    general_time = time(NULL);
+    struct tm local_time   = *localtime(&general_time);
+    char      filename[256];
 
-    sprintf(filename, "miniMD-%4d-%02d-%02d-%02d-%02d-%02d.yaml",
-            local_time.tm_year + 1900, local_time.tm_mon + 1, local_time.tm_mday,
-            local_time.tm_hour, local_time.tm_min, local_time.tm_sec);
+    sprintf(filename, "miniMD-%4d-%02d-%02d-%02d-%02d-%02d.yaml", local_time.tm_year + 1900, local_time.tm_mon + 1, local_time.tm_mday, local_time.tm_hour, local_time.tm_min, local_time.tm_sec);
 
     fp = fopen(filename, "w");
 
-    if(screen_yaml) {
+    if(screen_yaml)
+    {
       fprintf(stdout, "run_configuration: \n");
       fprintf(stdout, "  variant: " VARIANT_STRING "\n");
       fprintf(stdout, "  mpi_processes: %i\n", neighbor.threads->mpi_num_threads);
@@ -123,7 +122,7 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "  density: %lf\n", in.rho);
       fprintf(stdout, "  force_type: %s\n", in.forcetype == FORCELJ ? "LJ" : "EAM");
       fprintf(stdout, "  force_cutoff: %lf\n", force->cutforce);
-      fprintf(stdout, "  force_params: %2.2lf %2.2lf\n",force->epsilon,force->sigma);
+      fprintf(stdout, "  force_params: %2.2lf %2.2lf\n", force->epsilon, force->sigma);
       fprintf(stdout, "  neighbor_cutoff: %lf\n", neighbor.cutneigh);
       fprintf(stdout, "  neighbor_type: %i\n", neighbor.halfneigh);
       fprintf(stdout, "  neighbor_bins: %i %i %i\n", neighbor.nbinx, neighbor.nbiny, neighbor.nbinz);
@@ -134,7 +133,7 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "  ghost_newton: %i\n", neighbor.ghost_newton);
       fprintf(stdout, "  use_intrinsics: %i\n", force->use_sse);
       fprintf(stdout, "  safe_exchange: %i\n", comm.do_safeexchange);
-      fprintf(stdout, "  float_size: %i\n\n", (int) sizeof(MMD_float));
+      fprintf(stdout, "  float_size: %i\n\n", ( int )sizeof(MMD_float));
     }
 
     fprintf(fp, "run_configuration: \n");
@@ -151,7 +150,7 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "  density: %lf\n", in.rho);
     fprintf(fp, "  force_type: %s\n", in.forcetype == FORCELJ ? "LJ" : "EAM");
     fprintf(fp, "  force_cutoff: %lf\n", force->cutforce);
-    fprintf(fp, "  force_params: %2.2lf %2.2lf\n",force->epsilon,force->sigma);
+    fprintf(fp, "  force_params: %2.2lf %2.2lf\n", force->epsilon, force->sigma);
     fprintf(fp, "  neighbor_cutoff: %lf\n", neighbor.cutneigh);
     fprintf(fp, "  neighbor_type: %i\n", neighbor.halfneigh);
     fprintf(fp, "  neighbor_bins: %i %i %i\n", neighbor.nbinx, neighbor.nbiny, neighbor.nbinz);
@@ -162,53 +161,55 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "  ghost_newton: %i\n", neighbor.ghost_newton);
     fprintf(fp, "  use_intrinsics: %i\n", force->use_sse);
     fprintf(fp, "  safe_exchange: %i\n", comm.do_safeexchange);
-    fprintf(fp, "  float_size: %i\n\n", (int) sizeof(MMD_float));
+    fprintf(fp, "  float_size: %i\n\n", ( int )sizeof(MMD_float));
 
     if(screen_yaml)
       fprintf(stdout, "\n\nthermodynamic_output:\n");
 
     fprintf(fp, "\n\nthermodynamic_output:\n");
 
-    for(i = 0; i < thermo.mstat; i++) {
-      conserve = (1.5 * thermo.tmparr[i] + thermo.engarr[i]) /
-                 (1.5 * thermo.tmparr[0] + thermo.engarr[0]);
+    for(i = 0; i < thermo.mstat; i++)
+    {
+      conserve = (1.5 * thermo.tmparr[i] + thermo.engarr[i]) / (1.5 * thermo.tmparr[0] + thermo.engarr[0]);
 
-      if(screen_yaml) {
+      if(screen_yaml)
+      {
         fprintf(stdout, "  timestep: %d \n", thermo.steparr[i]);
         fprintf(stdout, "      T*:           %15.10g \n", thermo.tmparr[i]);
-        //fprintf(stdout,"      U*:           %15.10g \n", thermo.engarr[i]+engcorr);
-        //fprintf(stdout,"      P*:           %15.10g \n", thermo.prsarr[i]+prscorr);
+        // fprintf(stdout,"      U*:           %15.10g \n", thermo.engarr[i]+engcorr);
+        // fprintf(stdout,"      P*:           %15.10g \n", thermo.prsarr[i]+prscorr);
         fprintf(stdout, "      U*:           %15.10g \n", thermo.engarr[i]);
         fprintf(stdout, "      P*:           %15.10g \n", thermo.prsarr[i]);
         fprintf(stdout, "      Conservation: %15.10g \n", conserve);
       }
 
-      fprintf(fp    , "  timestep: %d \n", thermo.steparr[i]);
-      fprintf(fp    , "      T*:           %15.10g \n", thermo.tmparr[i]);
-      //fprintf(fp    ,"      U*:           %15.10g \n", thermo.engarr[i]+engcorr);
-      //fprintf(fp    ,"      P*:           %15.10g \n", thermo.prsarr[i]+prscorr);
-      fprintf(fp    , "      U*:           %15.10g \n", thermo.engarr[i]);
-      fprintf(fp    , "      P*:           %15.10g \n", thermo.prsarr[i]);
-      fprintf(fp    , "      Conservation: %15.10g \n", conserve);
+      fprintf(fp, "  timestep: %d \n", thermo.steparr[i]);
+      fprintf(fp, "      T*:           %15.10g \n", thermo.tmparr[i]);
+      // fprintf(fp    ,"      U*:           %15.10g \n", thermo.engarr[i]+engcorr);
+      // fprintf(fp    ,"      P*:           %15.10g \n", thermo.prsarr[i]+prscorr);
+      fprintf(fp, "      U*:           %15.10g \n", thermo.engarr[i]);
+      fprintf(fp, "      P*:           %15.10g \n", thermo.prsarr[i]);
+      fprintf(fp, "      Conservation: %15.10g \n", conserve);
     }
   }
 
   /* performance output */
 
-  if(me == 0) {
+  if(me == 0)
+  {
     fprintf(stdout, "\n\n");
     fprintf(fp, "\n\n");
   }
 
   double time_total = timer.array[TIME_TOTAL];
   MPI_Allreduce(&time_total, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  time_total = tmp / nprocs;
-  double mflops = 4.0 / 3.0 * 3.1415926 *
-                  pow(force->cutforce, MMD_float(3.0)) * in.rho * 0.5 *
-                  23 * natoms * integrate.ntimes / time_total / 1000000.0;
+  time_total    = tmp / nprocs;
+  double mflops = 4.0 / 3.0 * 3.1415926 * pow(force->cutforce, MMD_float(3.0)) * in.rho * 0.5 * 23 * natoms * integrate.ntimes / time_total / 1000000.0;
 
-  if(me == 0) {
-    if(screen_yaml) {
+  if(me == 0)
+  {
+    if(screen_yaml)
+    {
       fprintf(stdout, "time:\n");
       fprintf(stdout, "  total:\n");
       fprintf(stdout, "    time: %g \n", time_total);
@@ -216,46 +217,50 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "    performance_proc: %10.5e \n", natoms * integrate.ntimes / time_total / neighbor.threads->mpi_num_threads / neighbor.threads->omp_num_threads);
     }
 
-    fprintf(fp,    "time:\n");
-    fprintf(fp,    "  total:\n");
-    fprintf(fp,    "    time: %g \n", time_total);
-    fprintf(fp,    "    performance: %10.5e \n", natoms * integrate.ntimes / time_total);
-    fprintf(fp,    "    performance_proc: %10.5e \n", natoms * integrate.ntimes / time_total / neighbor.threads->mpi_num_threads / neighbor.threads->omp_num_threads);
+    fprintf(fp, "time:\n");
+    fprintf(fp, "  total:\n");
+    fprintf(fp, "    time: %g \n", time_total);
+    fprintf(fp, "    performance: %10.5e \n", natoms * integrate.ntimes / time_total);
+    fprintf(fp, "    performance_proc: %10.5e \n", natoms * integrate.ntimes / time_total / neighbor.threads->mpi_num_threads / neighbor.threads->omp_num_threads);
   }
 
-  if(time_total == 0.0) time_total = 1.0;
+  if(time_total == 0.0)
+    time_total = 1.0;
 
   double time_force = timer.array[TIME_FORCE];
   MPI_Allreduce(&time_force, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   tmp /= nprocs;
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "  force: %g\n", tmp);
 
-    fprintf(fp,    "  force: %g\n", tmp);
+    fprintf(fp, "  force: %g\n", tmp);
   }
 
   double time_neigh = timer.array[TIME_NEIGH];
   MPI_Allreduce(&time_neigh, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   tmp /= nprocs;
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "  neigh: %g\n", tmp);
 
-    fprintf(fp,    "  neigh: %g\n", tmp);
+    fprintf(fp, "  neigh: %g\n", tmp);
   }
 
   double time_comm = timer.array[TIME_COMM];
   MPI_Allreduce(&time_comm, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   tmp /= nprocs;
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "  comm:  %g\n", tmp);
 
-    fprintf(fp,    "  comm:  %g\n", tmp);
+    fprintf(fp, "  comm:  %g\n", tmp);
   }
 
 
@@ -263,14 +268,16 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
   MPI_Allreduce(&time_other, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   tmp /= nprocs;
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "  other: %g\n", tmp);
 
-    fprintf(fp,    "  other: %g\n", tmp);
+    fprintf(fp, "  other: %g\n", tmp);
   }
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "\n");
 
@@ -279,13 +286,16 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
 
   stats(1, &time_force, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
-    if(screen_yaml) {
+  if(me == 0)
+  {
+    if(screen_yaml)
+    {
       fprintf(stdout, "# Timing histograms \n");
       fprintf(stdout, "# Force time: %g ave %g max %g min\n", ave, max, min);
       fprintf(stdout, "# Histogram:");
 
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
       fprintf(stdout, "\n");
     }
@@ -294,19 +304,23 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Force time: %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
 
   stats(1, &time_neigh, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
-    if(screen_yaml) {
+  if(me == 0)
+  {
+    if(screen_yaml)
+    {
       fprintf(stdout, "# Neigh time: %g ave %g max %g min\n", ave, max, min);
       fprintf(stdout, "# Histogram:");
 
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
       fprintf(stdout, "\n");
     }
@@ -314,14 +328,16 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Neigh time: %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
 
   stats(1, &time_comm, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "# Comm  time: %g ave %g max %g min\n", ave, max, min);
 
@@ -329,7 +345,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "# Histogram:");
 
     if(screen_yaml)
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
     if(screen_yaml)
       fprintf(stdout, "\n");
@@ -337,14 +354,16 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Comm  time: %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
 
   stats(1, &time_other, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "# Other time: %g ave %g max %g min\n", ave, max, min);
 
@@ -352,7 +371,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "# Histogram:");
 
     if(screen_yaml)
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
     if(screen_yaml)
       fprintf(stdout, "\n");
@@ -360,12 +380,14 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Other time: %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
 
-  if(me == 0) {
+  if(me == 0)
+  {
     fprintf(stdout, "\n");
     fprintf(fp, "\n");
   }
@@ -373,7 +395,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
   tmp = atom.nlocal;
   stats(1, &tmp, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "# Nlocal:     %g ave %g max %g min\n", ave, max, min);
 
@@ -381,7 +404,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "# Histogram:");
 
     if(screen_yaml)
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
     if(screen_yaml)
       fprintf(stdout, "\n");
@@ -389,7 +413,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Nlocal:     %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
@@ -397,7 +422,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
   tmp = atom.nghost;
   stats(1, &tmp, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "# Nghost:     %g ave %g max %g min\n", ave, max, min);
 
@@ -405,7 +431,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "# Histogram:");
 
     if(screen_yaml)
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
     if(screen_yaml)
       fprintf(stdout, "\n");
@@ -413,19 +440,22 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Nghost:     %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
 
   n = 0;
 
-  for(i = 0; i < comm.nswap; i++) n += comm.sendnum[i];
+  for(i = 0; i < comm.nswap; i++)
+    n += comm.sendnum[i];
 
   tmp = n;
   stats(1, &tmp, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "# Nswaps:     %g ave %g max %g min\n", ave, max, min);
 
@@ -433,7 +463,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "# Histogram:");
 
     if(screen_yaml)
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
     if(screen_yaml)
       fprintf(stdout, "\n");
@@ -441,19 +472,22 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Nswaps:     %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
 
   n = 0;
 
-  for(i = 0; i < atom.nlocal; i++) n += neighbor.numneigh[i];
+  for(i = 0; i < atom.nlocal; i++)
+    n += neighbor.numneigh[i];
 
   tmp = n;
   stats(1, &tmp, &ave, &max, &min, 10, histo);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "# Neighs:     %g ave %g max %g min\n", ave, max, min);
 
@@ -461,7 +495,8 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "# Histogram:");
 
     if(screen_yaml)
-      for(i = 0; i < 10; i++) fprintf(stdout, " %d", histo[i]);
+      for(i = 0; i < 10; i++)
+        fprintf(stdout, " %d", histo[i]);
 
     if(screen_yaml)
       fprintf(stdout, "\n");
@@ -469,46 +504,52 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "# Neighs:     %g ave %g max %g min\n", ave, max, min);
     fprintf(fp, "# Histogram:");
 
-    for(i = 0; i < 10; i++) fprintf(fp, " %d", histo[i]);
+    for(i = 0; i < 10; i++)
+      fprintf(fp, " %d", histo[i]);
 
     fprintf(fp, "\n");
   }
 
   MPI_Allreduce(&tmp, &total, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "# Total # of neighbors = %g\n", total);
 
     fprintf(fp, "# Total # of neighbors = %g\n", total);
   }
 
-  if(me == 0) {
+  if(me == 0)
+  {
     if(screen_yaml)
       fprintf(stdout, "\n");
 
     fprintf(fp, "\n");
   }
 
-  if(me == 0) fclose(fp);
+  if(me == 0)
+    fclose(fp);
 }
 
-void stats(int n, double* data, double* pave, double* pmax, double* pmin,
-           int nhisto, int* histo)
+void stats(int n, double *data, double *pave, double *pmax, double *pmin, int nhisto, int *histo)
 {
-  int i, m;
-  int* histotmp;
+  int  i, m;
+  int *histotmp;
 
   double min = 1.0e20;
   double max = -1.0e20;
   double ave = 0.0;
 
-  for(i = 0; i < n; i++) {
+  for(i = 0; i < n; i++)
+  {
     ave += data[i];
 
-    if(data[i] < min) min = data[i];
+    if(data[i] < min)
+      min = data[i];
 
-    if(data[i] > max) max = data[i];
+    if(data[i] > max)
+      max = data[i];
   }
 
   int ntotal;
@@ -521,23 +562,29 @@ void stats(int n, double* data, double* pave, double* pmax, double* pmin,
   MPI_Allreduce(&max, &tmp, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
   max = tmp;
 
-  for(i = 0; i < nhisto; i++) histo[i] = 0;
+  for(i = 0; i < nhisto; i++)
+    histo[i] = 0;
 
   double del = max - min;
 
-  for(i = 0; i < n; i++) {
-    if(del == 0.0) m = 0;
-    else m = static_cast<int>((data[i] - min) / del * nhisto);
+  for(i = 0; i < n; i++)
+  {
+    if(del == 0.0)
+      m = 0;
+    else
+      m = static_cast<int>((data[i] - min) / del * nhisto);
 
-    if(m > nhisto - 1) m = nhisto - 1;
+    if(m > nhisto - 1)
+      m = nhisto - 1;
 
     histo[m]++;
   }
 
-  histotmp = (int*) malloc(nhisto * sizeof(int));
+  histotmp = ( int * )malloc(nhisto * sizeof(int));
   MPI_Allreduce(histo, histotmp, nhisto, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-  for(i = 0; i < nhisto; i++) histo[i] = histotmp[i];
+  for(i = 0; i < nhisto; i++)
+    histo[i] = histotmp[i];
 
   free(histotmp);
 
