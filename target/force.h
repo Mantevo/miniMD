@@ -29,8 +29,8 @@
    Please read the accompanying README and LICENSE files.
    ---------------------------------------------------------------------- */
 
-#ifndef FORCELJ_H
-#define FORCELJ_H
+#ifndef FORCE_H
+#define FORCE_H
 
 #include "atom.h"
 #include "neighbor.h"
