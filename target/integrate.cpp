@@ -109,40 +109,56 @@ void Integrate::run(Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Th
           double dx = (x[i * PAD + 0] - xold[i * PAD + 0]);
 
           if(dx > atom.box.xprd)
+          {
             dx -= atom.box.xprd;
+          }
 
           if(dx < -atom.box.xprd)
+          {
             dx += atom.box.xprd;
+          }
 
           double dy = (x[i * PAD + 1] - xold[i * PAD + 1]);
 
           if(dy > atom.box.yprd)
+          {
             dy -= atom.box.yprd;
+          }
 
           if(dy < -atom.box.yprd)
+          {
             dy += atom.box.yprd;
+          }
 
           double dz = (x[i * PAD + 2] - xold[i * PAD + 2]);
 
           if(dz > atom.box.zprd)
+          {
             dz -= atom.box.zprd;
+          }
 
           if(dz < -atom.box.zprd)
+          {
             dz += atom.box.zprd;
+          }
 
           double d = dx * dx + dy * dy + dz * dz;
 
           if(d > d_max)
+          {
             d_max = d;
+          }
         }
 
         d_max = sqrt(d_max);
 
         if((d_max > atom.box.xhi - atom.box.xlo) || (d_max > atom.box.yhi - atom.box.ylo) || (d_max > atom.box.zhi - atom.box.zlo))
+        {
           printf("Warning: Atoms move further than your subdomain size, which will eventually cause lost atoms.\n"
                  "Increase reneighboring frequency or choose a different processor grid\n"
                  "Maximum move distance: %lf; Subdomain dimensions: %lf %lf %lf\n",
                  d_max, atom.box.xhi - atom.box.xlo, atom.box.yhi - atom.box.ylo, atom.box.zhi - atom.box.zlo);
+        }
       }
 
       timer.stamp_extra_start();
@@ -157,9 +173,12 @@ void Integrate::run(Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Th
       timer.stamp(TIME_COMM);
 
       if(check_safeexchange)
+      {
         for(int i = 0; i < PAD * atom.nlocal; i++)
+        {
           xold[i] = x[i];
-
+        }
+      }
       neighbor.build(atom);
 
       timer.stamp(TIME_NEIGH);
@@ -184,6 +203,8 @@ void Integrate::run(Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Th
     finalIntegrate();
 
     if(thermo.nstat)
+    {
       thermo.compute(n + 1, atom, neighbor, force, timer, comm);
+    }
   }
 }

@@ -65,7 +65,9 @@ Force::~Force() {}
 void Force::setup()
 {
   for(int i = 0; i < ntypes * ntypes; i++)
+  {
     cutforcesq[i] = cutforce * cutforce;
+  }
 }
 
 void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
@@ -76,7 +78,9 @@ void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
   if(evflag)
   {
     if(use_oldcompute)
+    {
       return compute_original<1>(atom, neighbor, me);
+    }
 
     if(neighbor.halfneigh)
     {
@@ -85,33 +89,49 @@ void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
         if(threads->omp_num_threads > 1)
         {
           if(atom.privatize)
+          {
             return compute_halfneigh_threaded_private<1, 1>(atom, neighbor, me);
+          }
           else
+          {
             return compute_halfneigh_threaded<1, 1>(atom, neighbor, me);
+          }
         }
         else
+        {
           return compute_halfneigh<1, 1>(atom, neighbor, me);
+        }
       }
       else
       {
         if(threads->omp_num_threads > 1)
         {
           if(atom.privatize)
+          {
             return compute_halfneigh_threaded_private<1, 0>(atom, neighbor, me);
+          }
           else
+          {
             return compute_halfneigh_threaded<1, 0>(atom, neighbor, me);
+          }
         }
         else
+        {
           return compute_halfneigh<1, 0>(atom, neighbor, me);
+        }
       }
     }
     else
+    {
       return compute_fullneigh<1>(atom, neighbor, me);
+    }
   }
   else
   {
     if(use_oldcompute)
+    {
       return compute_original<0>(atom, neighbor, me);
+    }
 
 
     if(neighbor.halfneigh)
@@ -121,28 +141,42 @@ void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
         if(threads->omp_num_threads > 1)
         {
           if(atom.privatize)
+          {
             return compute_halfneigh_threaded_private<0, 1>(atom, neighbor, me);
+          }
           else
+          {
             return compute_halfneigh_threaded<0, 1>(atom, neighbor, me);
+          }
         }
         else
+        {
           return compute_halfneigh<0, 1>(atom, neighbor, me);
+        }
       }
       else
       {
         if(threads->omp_num_threads > 1)
         {
           if(atom.privatize)
+          {
             return compute_halfneigh_threaded_private<0, 0>(atom, neighbor, me);
+          }
           else
+          {
             return compute_halfneigh_threaded<0, 0>(atom, neighbor, me);
+          }
         }
         else
+        {
           return compute_halfneigh<0, 0>(atom, neighbor, me);
+        }
       }
     }
     else
+    {
       return compute_fullneigh<0>(atom, neighbor, me);
+    }
   }
 }
 

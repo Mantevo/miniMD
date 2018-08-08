@@ -47,9 +47,13 @@ void Thermo::setup(MMD_float rho_in, Integrate &integrate, Atom &atom, int units
   MMD_int maxstat;
 
   if(nstat == 0)
+  {
     maxstat = 2;
+  }
   else
+  {
     maxstat = ntimes / nstat + 2;
+  }
 
   steparr = ( MMD_int * )malloc(maxstat * sizeof(MMD_int));
   tmparr  = ( MMD_float * )malloc(maxstat * sizeof(MMD_float));
@@ -80,10 +84,14 @@ void Thermo::compute(MMD_int iflag, Atom &atom, Neighbor &neighbor, Force *force
   MMD_float t, eng, p;
 
   if(iflag > 0 && iflag % nstat)
+  {
     return;
+  }
 
   if(iflag == -1 && nstat > 0 && ntimes % nstat == 0)
+  {
     return;
+  }
 
   t_act = 0;
   e_act = 0;
@@ -98,10 +106,14 @@ void Thermo::compute(MMD_int iflag, Atom &atom, Neighbor &neighbor, Force *force
   MMD_int istep = iflag;
 
   if(iflag == -1)
+  {
     istep = ntimes;
+  }
 
   if(iflag == 0)
+  {
     mstat = 0;
+  }
 
   steparr[mstat] = istep;
   tmparr[mstat]  = t;
@@ -136,9 +148,13 @@ MMD_float Thermo::energy(Atom &atom, Neighbor &neighbor, Force *force)
   MMD_float eng;
 
   if(sizeof(MMD_float) == 4)
+  {
     MPI_Allreduce(&e_act, &eng, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+  }
   else
+  {
     MPI_Allreduce(&e_act, &eng, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  }
 
   return eng / atom.natoms;
 }
@@ -167,9 +183,13 @@ MMD_float Thermo::temperature(Atom &atom)
 
   MMD_float t1;
   if(sizeof(MMD_float) == 4)
+  {
     MPI_Allreduce(&t_act, &t1, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+  }
   else
+  {
     MPI_Allreduce(&t_act, &t1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  }
 
   return t1 * t_scale;
 }
@@ -186,9 +206,13 @@ MMD_float Thermo::pressure(MMD_float t, Force *force)
   MMD_float virial = 0;
 
   if(sizeof(MMD_float) == 4)
+  {
     MPI_Allreduce(&p_act, &virial, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+  }
   else
+  {
     MPI_Allreduce(&p_act, &virial, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  }
 
   // printf("Pres: %e %e %e %e\n",t,dof_boltz,virial,p_scale);
   return (t * dof_boltz + virial) * p_scale;

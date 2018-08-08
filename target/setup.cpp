@@ -63,17 +63,23 @@ void read_lammps_parse_keyword(int first)
   if(!first)
   {
     if(fgets(line, MAXLINE, fp) == NULL)
+    {
       eof = 1;
+    }
   }
 
   while(eof == 0 && strspn(line, " \t\n\r") == strlen(line))
   {
     if(fgets(line, MAXLINE, fp) == NULL)
+    {
       eof = 1;
+    }
   }
 
   if(fgets(buffer, MAXLINE, fp) == NULL)
+  {
     eof = 1;
+  }
 
   // if eof, set keyword empty and return
 
@@ -92,7 +98,9 @@ void read_lammps_parse_keyword(int first)
   int stop  = strlen(line) - 1;
 
   while(line[stop] == ' ' || line[stop] == '\t' || line[stop] == '\n' || line[stop] == '\r')
+  {
     stop--;
+  }
 
   line[stop + 1] = '\0';
   strcpy(keyword, &line[start]);
@@ -118,9 +126,13 @@ void read_lammps_header(Atom &atom)
   {
 
     if(fgets(line, MAXLINE, fp) == NULL)
+    {
       n = 0;
+    }
     else
+    {
       n = strlen(line) + 1;
+    }
 
     if(n == 0)
     {
@@ -133,22 +145,29 @@ void read_lammps_header(Atom &atom)
 
     double xlo, xhi, ylo, yhi, zlo, zhi;
 
-    if(ptr = strchr(line, '#'))
+    if((ptr == strchr(line, '#')))
+    {
       *ptr = '\0';
+    }
 
     if(strspn(line, " \t\n\r") == strlen(line))
+    {
       continue;
+    }
 
     // search line for header keyword and set corresponding variable
 
     if(strstr(line, "atoms"))
+    {
       sscanf(line, "%i", &atom.natoms);
+    }
     else if(strstr(line, "atom types"))
+    {
       sscanf(line, "%i", &ntypes);
 
-    // check for these first
-    // otherwise "triangles" will be matched as "angles"
-
+      // check for these first
+      // otherwise "triangles" will be matched as "angles"
+    }
     else if(strstr(line, "xlo xhi"))
     {
       sscanf(line, "%lg %lg", &xlo, &xhi);
@@ -165,7 +184,9 @@ void read_lammps_header(Atom &atom)
       atom.box.zprd = zhi - zlo;
     }
     else
+    {
       break;
+    }
   }
 
   // error check on total system size
@@ -176,8 +197,12 @@ void read_lammps_header(Atom &atom)
   read_lammps_parse_keyword(1);
 
   for(n = 0; n < NSECTIONS; n++)
+  {
     if(strcmp(keyword, section_keywords[n]) == 0)
+    {
       break;
+    }
+  }
 
   if(n == NSECTIONS)
   {
@@ -259,13 +284,19 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
   }
 
   if(neighbor.nbinx == 0)
+  {
     neighbor.nbinx = 1;
+  }
 
   if(neighbor.nbiny == 0)
+  {
     neighbor.nbiny = 1;
+  }
 
   if(neighbor.nbinz == 0)
+  {
     neighbor.nbinz = 1;
+  }
 
   neighbor.setup(atom);
 
@@ -291,7 +322,9 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
     else if(strcmp(keyword, "Velocities") == 0)
     {
       if(atomflag == 0)
+      {
         printf("Must read Atoms before Velocities\n");
+      }
 
       read_lammps_velocities(atom, v);
     }
@@ -312,7 +345,9 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
   for(int i = 0; i < atom.natoms; i++)
   {
     if(x[i * PAD + 0] >= atom.box.xlo && x[i * PAD + 0] < atom.box.xhi && x[i * PAD + 1] >= atom.box.ylo && x[i * PAD + 1] < atom.box.yhi && x[i * PAD + 2] >= atom.box.zlo && x[i * PAD + 2] < atom.box.zhi)
+    {
       atom.addatom(x[i * PAD + 0], x[i * PAD + 1], x[i * PAD + 2], v[i * PAD + 0], v[i * PAD + 1], v[i * PAD + 2]);
+    }
   }
 
   int me;
@@ -326,7 +361,9 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
   if(natoms != atom.natoms)
   {
     if(me == 0)
+    {
       printf("Created incorrect # of atoms\n");
+    }
 
     return 1;
   }
@@ -398,7 +435,9 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
     i = ox * subboxdim + sx;
 
     if(iflag)
+    {
       continue;
+    }
 
     if(((i + j + k) % 2 == 0) && (i >= ilo) && (i <= ihi) && (j >= jlo) && (j <= jhi) && (k >= klo) && (k <= khi))
     {
@@ -412,17 +451,23 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
         n = k * (2 * ny) * (2 * nx) + j * (2 * nx) + i + 1;
 
         for(m = 0; m < 5; m++)
+        {
           random(&n);
+        }
 
         vx = random(&n);
 
         for(m = 0; m < 5; m++)
+        {
           random(&n);
+        }
 
         vy = random(&n);
 
         for(m = 0; m < 5; m++)
+        {
           random(&n);
+        }
 
         vz = random(&n);
 
@@ -474,7 +519,9 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
   if(iflagall)
   {
     if(me == 0)
+    {
       printf("No memory for atoms\n");
+    }
 
     return 1;
   }
@@ -487,7 +534,9 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
   if(natoms != atom.natoms)
   {
     if(me == 0)
+    {
       printf("Created incorrect # of atoms\n");
+    }
 
     return 1;
   }
@@ -560,7 +609,9 @@ double random(int *idum)
   *idum = IA * (*idum - k * IQ) - IR * k;
 
   if(*idum < 0)
+  {
     *idum += IM;
+  }
 
   ans = AM * (*idum);
   return ans;

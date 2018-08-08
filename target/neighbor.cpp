@@ -66,16 +66,24 @@ Neighbor::~Neighbor()
     _mm_free(neighbors);
 #else
   if(numneigh)
+  {
     free(numneigh);
+  }
   if(neighbors)
+  {
     free(neighbors);
+  }
 #endif
 
   if(bincount)
+  {
     free(bincount);
+  }
 
   if(bins)
+  {
     free(bins);
+  }
 }
 
 /* binned neighbor list construction with full Newton's 3rd law
@@ -103,10 +111,14 @@ void Neighbor::build(Atom &atom)
 #else
 
     if(numneigh)
+    {
       free(numneigh);
+    }
 
     if(neighbors)
+    {
       free(neighbors);
+    }
 
     numneigh  = ( int * )malloc(nmax * sizeof(int));
     neighbors = ( int * )malloc(nmax * maxneighs * sizeof(int));
@@ -158,13 +170,16 @@ void Neighbor::build(Atom &atom)
         int *loc_bin = &bins[jbin * atoms_per_bin];
 
         if(ibin == jbin)
+        {
           for(int m = 0; m < bincount[jbin]; m++)
           {
             const int j = loc_bin[m];
 
             // for same bin as atom i skip j if i==j and skip atoms "below and to the left" if using halfneighborlists
             if(((j == i) || (halfneigh && !ghost_newton && (j < i)) || (halfneigh && ghost_newton && ((j < i) || ((j >= nlocal) && ((x[j * PAD + 2] < ztmp) || (x[j * PAD + 2] == ztmp && x[j * PAD + 1] < ytmp) || (x[j * PAD + 2] == ztmp && x[j * PAD + 1] == ytmp && x[j * PAD + 0] < xtmp)))))))
+            {
               continue;
+            }
 
             const MMD_float delx   = xtmp - x[j * PAD + 0];
             const MMD_float dely   = ytmp - x[j * PAD + 1];
@@ -173,8 +188,11 @@ void Neighbor::build(Atom &atom)
             const MMD_float rsq    = delx * delx + dely * dely + delz * delz;
 
             if((rsq <= cutneighsq[type_i * ntypes + type_j]))
+            {
               neighptr[n++] = j;
+            }
           }
+        }
         else
         {
           for(int m = 0; m < bincount[jbin]; m++)
@@ -182,7 +200,9 @@ void Neighbor::build(Atom &atom)
             const int j = loc_bin[m];
 
             if(halfneigh && !ghost_newton && (j < i))
+            {
               continue;
+            }
 
             const MMD_float delx   = xtmp - x[j * PAD + 0];
             const MMD_float dely   = ytmp - x[j * PAD + 1];
@@ -191,7 +211,9 @@ void Neighbor::build(Atom &atom)
             const MMD_float rsq    = delx * delx + dely * dely + delz * delz;
 
             if((rsq <= cutneighsq[type_i * ntypes + type_j]))
+            {
               neighptr[n++] = j;
+            }
           }
         }
       }
@@ -203,7 +225,9 @@ void Neighbor::build(Atom &atom)
         resize = 1;
 
         if(n >= new_maxneighs)
+        {
           new_maxneighs = n;
+        }
       }
     }
 
@@ -239,7 +263,9 @@ void Neighbor::binatoms(Atom &atom, int count)
     resize = 0;
     #pragma omp parallel for
     for(int i = 0; i < mbins; i++)
+    {
       bincount[i] = 0;
+    }
 
     #pragma omp parallel for
     for(int i = 0; i < nall; i++)
@@ -254,7 +280,9 @@ void Neighbor::binatoms(Atom &atom, int count)
         bins[ibin * atoms_per_bin + ac] = i;
       }
       else
+      {
         resize = 1;
+      }
     }
 
     if(resize)
@@ -275,25 +303,43 @@ inline int Neighbor::coord2bin(MMD_float x, MMD_float y, MMD_float z)
   int ix, iy, iz;
 
   if(x >= xprd)
+  {
     ix = ( int )((x - xprd) * bininvx) + nbinx - mbinxlo;
+  }
   else if(x >= 0.0)
+  {
     ix = ( int )(x * bininvx) - mbinxlo;
+  }
   else
+  {
     ix = ( int )(x * bininvx) - mbinxlo - 1;
+  }
 
   if(y >= yprd)
+  {
     iy = ( int )((y - yprd) * bininvy) + nbiny - mbinylo;
+  }
   else if(y >= 0.0)
+  {
     iy = ( int )(y * bininvy) - mbinylo;
+  }
   else
+  {
     iy = ( int )(y * bininvy) - mbinylo - 1;
+  }
 
   if(z >= zprd)
+  {
     iz = ( int )((z - zprd) * bininvz) + nbinz - mbinzlo;
+  }
   else if(z >= 0.0)
+  {
     iz = ( int )(z * bininvz) - mbinzlo;
+  }
   else
+  {
     iz = ( int )(z * bininvz) - mbinzlo - 1;
+  }
 
   return (iz * mbiny * mbinx + iy * mbinx + ix + 1);
 }
@@ -323,7 +369,9 @@ int Neighbor::setup(Atom &atom)
   int       num_omp_threads = threads->omp_num_threads;
 
   for(int i = 0; i < ntypes * ntypes; i++)
+  {
     cutneighsq[i] = cutneigh * cutneigh;
+  }
 
   xprd = atom.box.xprd;
   yprd = atom.box.yprd;
@@ -355,7 +403,9 @@ int Neighbor::setup(Atom &atom)
   mbinxlo = static_cast<int>(coord * bininvx);
 
   if(coord < 0.0)
+  {
     mbinxlo = mbinxlo - 1;
+  }
 
   coord   = atom.box.xhi + cutneigh + SMALL * xprd;
   mbinxhi = static_cast<int>(coord * bininvx);
@@ -364,7 +414,9 @@ int Neighbor::setup(Atom &atom)
   mbinylo = static_cast<int>(coord * bininvy);
 
   if(coord < 0.0)
+  {
     mbinylo = mbinylo - 1;
+  }
 
   coord   = atom.box.yhi + cutneigh + SMALL * yprd;
   mbinyhi = static_cast<int>(coord * bininvy);
@@ -373,7 +425,9 @@ int Neighbor::setup(Atom &atom)
   mbinzlo = static_cast<int>(coord * bininvz);
 
   if(coord < 0.0)
+  {
     mbinzlo = mbinzlo - 1;
+  }
 
   coord   = atom.box.zhi + cutneigh + SMALL * zprd;
   mbinzhi = static_cast<int>(coord * bininvz);
@@ -407,22 +461,30 @@ int Neighbor::setup(Atom &atom)
   nextx = static_cast<int>(cutneigh * bininvx);
 
   if(nextx * binsizex < FACTOR * cutneigh)
+  {
     nextx++;
+  }
 
   nexty = static_cast<int>(cutneigh * bininvy);
 
   if(nexty * binsizey < FACTOR * cutneigh)
+  {
     nexty++;
+  }
 
   nextz = static_cast<int>(cutneigh * bininvz);
 
   if(nextz * binsizez < FACTOR * cutneigh)
+  {
     nextz++;
+  }
 
   nmax = (2 * nextz + 1) * (2 * nexty + 1) * (2 * nextx + 1);
 
   if(stencil)
+  {
     free(stencil);
+  }
 
   stencil = ( int * )malloc(nmax * sizeof(int));
 
@@ -442,10 +504,12 @@ int Neighbor::setup(Atom &atom)
       for(i = -nextx; i <= nextx; i++)
       {
         if(!ghost_newton || !halfneigh || (k > 0 || j > 0 || (j == 0 && i > 0)))
+        {
           if(bindist(i, j, k) < cutneighsq[0])
           {
             stencil[nstencil++] = k * mbiny * mbinx + j * mbinx + i;
           }
+        }
       }
     }
   }
@@ -453,12 +517,16 @@ int Neighbor::setup(Atom &atom)
   mbins = mbinx * mbiny * mbinz;
 
   if(bincount)
+  {
     free(bincount);
+  }
 
   bincount = ( int * )malloc(mbins * num_omp_threads * sizeof(int));
 
   if(bins)
+  {
     free(bins);
+  }
 
   bins = ( int * )malloc(mbins * num_omp_threads * atoms_per_bin * sizeof(int));
   return 0;
@@ -471,25 +539,43 @@ MMD_float Neighbor::bindist(int i, int j, int k)
   MMD_float delx, dely, delz;
 
   if(i > 0)
+  {
     delx = (i - 1) * binsizex;
+  }
   else if(i == 0)
+  {
     delx = 0.0;
+  }
   else
+  {
     delx = (i + 1) * binsizex;
+  }
 
   if(j > 0)
+  {
     dely = (j - 1) * binsizey;
+  }
   else if(j == 0)
+  {
     dely = 0.0;
+  }
   else
+  {
     dely = (j + 1) * binsizey;
+  }
 
   if(k > 0)
+  {
     delz = (k - 1) * binsizez;
+  }
   else if(k == 0)
+  {
     delz = 0.0;
+  }
   else
+  {
     delz = (k + 1) * binsizez;
+  }
 
   return (delx * delx + dely * dely + delz * delz);
 }

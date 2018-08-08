@@ -103,7 +103,9 @@ void Atom::growarray()
 void Atom::addatom(MMD_float x_in, MMD_float y_in, MMD_float z_in, MMD_float vx_in, MMD_float vy_in, MMD_float vz_in)
 {
   if(nlocal == nmax)
+  {
     growarray();
+  }
 
   x[nlocal * PAD + 0] = x_in;
   x[nlocal * PAD + 1] = y_in;
@@ -126,22 +128,34 @@ void Atom::pbc()
   for(int i = 0; i < nlocal; i++)
   {
     if(x[i * PAD + 0] < 0.0)
+    {
       x[i * PAD + 0] += box.xprd;
+    }
 
     if(x[i * PAD + 0] >= box.xprd)
+    {
       x[i * PAD + 0] -= box.xprd;
+    }
 
     if(x[i * PAD + 1] < 0.0)
+    {
       x[i * PAD + 1] += box.yprd;
+    }
 
     if(x[i * PAD + 1] >= box.yprd)
+    {
       x[i * PAD + 1] -= box.yprd;
+    }
 
     if(x[i * PAD + 2] < 0.0)
+    {
       x[i * PAD + 2] += box.zprd;
+    }
 
     if(x[i * PAD + 2] >= box.zprd)
+    {
       x[i * PAD + 2] -= box.zprd;
+    }
   }
 }
 
@@ -254,7 +268,9 @@ int Atom::pack_border(int i, MMD_float *buf, int *pbc_flags)
 int Atom::unpack_border(int i, MMD_float *buf)
 {
   if(i == nmax)
+  {
     growarray();
+  }
 
   int m = 0;
 
@@ -282,7 +298,9 @@ int Atom::pack_exchange(int i, MMD_float *buf)
 int Atom::unpack_exchange(int i, MMD_float *buf)
 {
   if(i == nmax)
+  {
     growarray();
+  }
 
   int m = 0;
 
@@ -308,7 +326,9 @@ MMD_float *Atom::realloc_2d_MMD_float_array(MMD_float *array, int n1, int n2, in
   newarray = create_2d_MMD_float_array(n1, n2);
 
   if(nold)
+  {
     memcpy(newarray, array, nold * sizeof(MMD_float));
+  }
 
   destroy_2d_MMD_float_array(array);
 
@@ -322,7 +342,9 @@ MMD_float *Atom::create_2d_MMD_float_array(int n1, int n2)
   MMD_float *array;
 
   if(n1 * n2 == 0)
+  {
     return NULL;
+  }
 
 #ifdef ALIGNMALLOC
   array = ( MMD_float * )_mm_malloc((n1 * n2 + 1024 + 1) * sizeof(MMD_float), ALIGNMALLOC);
@@ -355,7 +377,9 @@ int *Atom::realloc_1d_int_array(int *array, int n1, int nold)
   newarray = create_1d_int_array(n1);
 
   if(nold)
+  {
     memcpy(newarray, array, nold * sizeof(int));
+  }
 
   destroy_1d_int_array(array);
 
@@ -371,7 +395,9 @@ int *Atom::create_1d_int_array(int n1)
   int  i, n;
 
   if(n1 == 0)
+  {
     return NULL;
+  }
 
 #ifdef ALIGNMALLOC
   data = ( int * )_mm_malloc((n1 + 1024 + 1) * sizeof(int), ALIGNMALLOC);
@@ -407,7 +433,9 @@ void Atom::sort(Neighbor &neighbor)
   const int atoms_per_bin = neighbor.atoms_per_bin;
 
   for(int i = 1; i < mbins; i++)
+  {
     binpos[i] += binpos[i - 1];
+  }
 
   if(copy_size < nmax)
   {

@@ -38,13 +38,17 @@ Timer::Timer()
   array = ( double * )malloc(TIME_N * sizeof(double));
 
   for(int i = 0; i < TIME_N; i++)
+  {
     array[i] = 0.0;
+  }
 }
 
 Timer::~Timer()
 {
   if(array)
+  {
     free(array);
+  }
 }
 
 void Timer::stamp()

@@ -129,7 +129,9 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
   if(procgrid[0] * procgrid[1] * procgrid[2] != nprocs)
   {
     if(me == 0)
+    {
       printf("ERROR: Bad grid of processors\n");
+    }
 
     return 1;
   }
@@ -183,11 +185,13 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
   int iswap         = 0;
 
   for(int idim = 0; idim < 3; idim++)
+  {
     for(int i = 1; i <= need[idim]; i++, iswap += 2)
     {
       MPI_Cart_shift(cartesian, idim, i, &sendproc_exc[iswap], &sendproc_exc[iswap + 1]);
       MPI_Cart_shift(cartesian, idim, i, &recvproc_exc[iswap + 1], &recvproc_exc[iswap]);
     }
+  }
 
   MPI_Comm_free(&cartesian);
 
@@ -195,12 +199,16 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
   maxsendlist = ( int * )malloc(maxswap * sizeof(int));
 
   for(i = 0; i < maxswap; i++)
+  {
     maxsendlist[i] = BUFMIN;
+  }
 
   sendlist = ( int ** )malloc(maxswap * sizeof(int *));
 
   for(i = 0; i < maxswap; i++)
+  {
     sendlist[i] = ( int * )malloc(BUFMIN * sizeof(int));
+  }
 
   /* setup 4 parameters for each exchange: (spart,rpart,slablo,slabhi)
      sendproc(nswap) = proc to send to at each swap
@@ -235,13 +243,19 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
         lo              = nbox * prd[idim] / procgrid[idim];
 
         if(idim == 0)
+        {
           hi = atom.box.xlo + cutneigh;
+        }
 
         if(idim == 1)
+        {
           hi = atom.box.ylo + cutneigh;
+        }
 
         if(idim == 2)
+        {
           hi = atom.box.zlo + cutneigh;
+        }
 
         hi = MIN(hi, (nbox + 1) * prd[idim] / procgrid[idim]);
 
@@ -250,13 +264,19 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
           pbc_any[nswap] = 1;
 
           if(idim == 0)
+          {
             pbc_flagx[nswap] = 1;
+          }
 
           if(idim == 1)
+          {
             pbc_flagy[nswap] = 1;
+          }
 
           if(idim == 2)
+          {
             pbc_flagz[nswap] = 1;
+          }
         }
       }
       else
@@ -267,13 +287,19 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
         hi              = (nbox + 1) * prd[idim] / procgrid[idim];
 
         if(idim == 0)
+        {
           lo = atom.box.xhi - cutneigh;
+        }
 
         if(idim == 1)
+        {
           lo = atom.box.yhi - cutneigh;
+        }
 
         if(idim == 2)
+        {
           lo = atom.box.zhi - cutneigh;
+        }
 
         lo = MAX(lo, nbox * prd[idim] / procgrid[idim]);
 
@@ -282,13 +308,19 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
           pbc_any[nswap] = 1;
 
           if(idim == 0)
+          {
             pbc_flagx[nswap] = -1;
+          }
 
           if(idim == 1)
+          {
             pbc_flagy[nswap] = -1;
+          }
 
           if(idim == 2)
+          {
             pbc_flagz[nswap] = -1;
+          }
         }
       }
 
@@ -344,7 +376,9 @@ void Comm::communicate(Atom &atom)
       buf = buf_recv;
     }
     else
+    {
       buf = buf_send;
+    }
 
     /* unpack buffer */
 
@@ -388,7 +422,9 @@ void Comm::reverse_communicate(Atom &atom)
       buf = buf_recv;
     }
     else
+    {
       buf = buf_send;
+    }
 
     /* unpack buffer */
 
@@ -429,7 +465,9 @@ void Comm::exchange(Atom &atom)
     /* only exchange if more than one proc in this dimension */
 
     if(procgrid[idim] == 1)
+    {
       continue;
+    }
 
     /* fill buffer with atoms leaving my box
        when atom is deleted, fill it in with last atom */
@@ -479,7 +517,9 @@ void Comm::exchange(Atom &atom)
       exc_copylist = ( int * )realloc(exc_copylist, maxexc * sizeof(int));
     }
     if(nsend * 7 > maxsend)
+    {
       growsend(nsend * 7);
+    }
 
     // build the sendlist
     #pragma omp parallel for
@@ -507,7 +547,9 @@ void Comm::exchange(Atom &atom)
       if(exc_sendlist[i] < nlocal)
       {
         while(send_flag[sendpos])
+        {
           sendpos--;
+        }
         exc_copylist[i] = sendpos;
         sendpos--;
       }
@@ -546,7 +588,9 @@ void Comm::exchange(Atom &atom)
     }
 
     if(nrecv > maxrecv)
+    {
       growrecv(nrecv);
+    }
 
     if(sizeof(MMD_float) == 4)
     {
@@ -600,7 +644,9 @@ void Comm::exchange(Atom &atom)
     }
 
     while(atom.nlocal >= atom.nmax)
+    {
       atom.growarray();
+    }
 
     int offset = atom.nlocal;
     #pragma omp parallel for
@@ -675,14 +721,18 @@ void Comm::exchange_all(Atom &atom)
       if(x[i * PAD + idim] < lo || x[i * PAD + idim] >= hi)
       {
         if(nsend > maxsend)
+        {
           growsend(nsend);
+        }
 
         nsend += atom.pack_exchange(i, &buf_send[nsend]);
         atom.copy(nlocal - 1, i);
         nlocal--;
       }
       else
+      {
         i++;
+      }
     }
 
     atom.nlocal = nlocal;
@@ -697,7 +747,9 @@ void Comm::exchange_all(Atom &atom)
         MPI_Recv(&nrecv, 1, MPI_INT, recvproc_exc[iswap], 0, MPI_COMM_WORLD, &status);
 
         if(nrecv > maxrecv)
+        {
           growrecv(nrecv);
+        }
 
         if(sizeof(MMD_float) == 4)
         {
@@ -723,9 +775,13 @@ void Comm::exchange_all(Atom &atom)
           value = buf_recv[m + idim];
 
           if(value >= lo && value < hi)
+          {
             m += atom.unpack_exchange(n++, &buf_recv[m]);
+          }
           else
+          {
             m += atom.skip_exchange(&buf_recv[m]);
+          }
         }
 
         atom.nlocal = n;
@@ -814,9 +870,13 @@ void Comm::borders(Atom &atom)
         exc_sendlist = ( int * )realloc(exc_sendlist, maxexc * sizeof(int));
       }
       if(nsend > maxsendlist[iswap])
+      {
         growlist(iswap, nsend);
+      }
       if(nsend * 4 > maxsend)
+      {
         growsend(nsend * 4);
+      }
 
       // build the exchange list
       nsend = 0;
@@ -850,7 +910,9 @@ void Comm::borders(Atom &atom)
         MPI_Recv(&nrecv, 1, MPI_INT, recvproc[iswap], 0, MPI_COMM_WORLD, &status);
 
         if(nrecv * atom.border_size > maxrecv)
+        {
           growrecv(nrecv * atom.border_size);
+        }
 
         if(sizeof(MMD_float) == 4)
         {
@@ -878,7 +940,9 @@ void Comm::borders(Atom &atom)
 
       n = atom.nlocal + atom.nghost;
       while(n + nrecv >= atom.nmax)
+      {
         atom.growarray();
+      }
 
       #pragma omp parallel for
       for(int i = 0; i < nrecv; i++)
@@ -913,10 +977,14 @@ void Comm::borders(Atom &atom)
   }
 
   if(max1 > maxsend)
+  {
     growsend(max1);
+  }
 
   if(max2 > maxrecv)
+  {
     growrecv(max2);
+  }
 }
 
 /* realloc the size of the send buffer as needed with BUFFACTOR & BUFEXTRA */

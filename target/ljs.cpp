@@ -98,9 +98,13 @@ int main(int argc, char **argv)
   int error = 0;
 
   if(input_file == NULL)
+  {
     error = input(in, "in.lj.miniMD");
+  }
   else
+  {
     error = input(in, input_file);
+  }
 
   if(error)
   {
@@ -211,7 +215,9 @@ int main(int argc, char **argv)
     if((strcmp(argv[i], "-f") == 0) || (strcmp(argv[i], "--data_file") == 0))
     {
       if(in.datafile == NULL)
+      {
         in.datafile = new char[1000];
+      }
 
       strcpy(in.datafile, argv[++i]);
       continue;
@@ -342,14 +348,18 @@ int main(int argc, char **argv)
   neighbor.halfneigh      = halfneigh;
 
   if(halfneigh < 0)
+  {
     force->use_oldcompute = 1;
+  }
 
   if(use_sse)
   {
 #ifdef VARIANT_REFERENCE
 
     if(me == 0)
+    {
       printf("ERROR: Trying to run with -sse with miniMD reference version. Use SSE variant instead. Exiting.\n");
+    }
 
     MPI_Finalize();
     exit(0);
@@ -357,7 +367,9 @@ int main(int argc, char **argv)
   }
 
   if(num_steps > 0)
+  {
     in.ntimes = num_steps;
+  }
 
   if(system_size > 0)
   {
@@ -370,14 +382,22 @@ int main(int argc, char **argv)
   {
     in.nx = nx;
     if(ny > 0)
+    {
       in.ny = ny;
+    }
     else if(system_size < 0)
+    {
       in.ny = nx;
+    }
 
     if(nz > 0)
+    {
       in.nz = nz;
+    }
     else if(system_size < 0)
+    {
       in.nz = nx;
+    }
   }
 
   if(neighbor_size > 0)
@@ -396,16 +416,24 @@ int main(int argc, char **argv)
   }
 
   if(neighbor_size < 0 && in.datafile)
+  {
     neighbor.nbinx = -1;
+  }
 
   if(neighbor.nbinx == 0)
+  {
     neighbor.nbinx = 1;
+  }
 
   if(neighbor.nbiny == 0)
+  {
     neighbor.nbiny = 1;
+  }
 
   if(neighbor.nbinz == 0)
+  {
     neighbor.nbinz = 1;
+  }
 
   integrate.ntimes     = in.ntimes;
   integrate.dt         = in.dt;
@@ -417,7 +445,9 @@ int main(int argc, char **argv)
 
 
   if(me == 0)
+  {
     printf("# Create System:\n");
+  }
 
   if(in.datafile)
   {
@@ -427,7 +457,9 @@ int main(int argc, char **argv)
     force->setup();
 
     if(in.forcetype == FORCEEAM)
+    {
       atom.mass = force->mass;
+    }
   }
   else
   {
@@ -442,7 +474,9 @@ int main(int argc, char **argv)
     force->setup();
 
     if(in.forcetype == FORCEEAM)
+    {
       atom.mass = force->mass;
+    }
 
     create_atoms(atom, in.nx, in.ny, in.nz, in.rho);
     thermo.setup(in.rho, integrate, atom, in.units);
@@ -453,12 +487,16 @@ int main(int argc, char **argv)
   if(in.forcetype == FORCEEAM)
   {
     if(me == 0)
+    {
       fprintf(stderr, "ERROR: ForceEAM not supported by OpenMP 5.0 version\n");
+    }
     exit(EXIT_FAILURE);
   }
 
   if(me == 0)
+  {
     printf("# Done .... \n");
+  }
 
   if(me == 0)
   {
@@ -494,7 +532,9 @@ int main(int argc, char **argv)
 
   comm.exchange(atom);
   if(sort > 0)
+  {
     atom.sort(neighbor);
+  }
   comm.borders(atom);
 
   force->evflag = 1;
@@ -503,13 +543,19 @@ int main(int argc, char **argv)
   force->compute(atom, neighbor, comm, me);
 
   if(neighbor.halfneigh && neighbor.ghost_newton)
+  {
     comm.reverse_communicate(atom);
+  }
 
   if(me == 0)
+  {
     printf("# Starting dynamics ...\n");
+  }
 
   if(me == 0)
+  {
     printf("# Timestep T U P Time\n");
+  }
 
   thermo.compute(0, atom, neighbor, force, timer, comm);
 
@@ -524,7 +570,9 @@ int main(int argc, char **argv)
   force->compute(atom, neighbor, comm, me);
 
   if(neighbor.halfneigh && neighbor.ghost_newton)
+  {
     comm.reverse_communicate(atom);
+  }
 
   thermo.compute(-1, atom, neighbor, force, timer, comm);
 
@@ -538,7 +586,9 @@ int main(int argc, char **argv)
   }
 
   if(yaml_output)
+  {
     output(in, atom, force, neighbor, comm, thermo, integrate, timer, screen_yaml);
+  }
 
   delete force;
   MPI_Barrier(MPI_COMM_WORLD);
