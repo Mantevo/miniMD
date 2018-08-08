@@ -279,7 +279,7 @@ int main(int argc, char** argv)
   Timer timer;
   ThreadData threads;
 
-  Force* force = (Force*) new Force(ntypes);
+  Force* force = new Force(ntypes);
 
   threads.mpi_me = me;
   threads.mpi_num_threads = nprocs;

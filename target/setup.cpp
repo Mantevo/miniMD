@@ -30,14 +30,7 @@
    ---------------------------------------------------------------------- */
 
 #include <cstdio>
-// FIXME: Temporary workaround for clang's aversion to math.h
-#ifdef __clang__
-#undef __SSE2_MATH__
-#undef __SSE2__
-#undef __SSE_MATH__
-#undef __SSE__
-#endif
-#include <cmath>
+#include "miniMD_math.h"
 #include "mpi.h"
 #include "atom.h"
 #include "thermo.h"
