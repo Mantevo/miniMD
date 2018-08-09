@@ -457,7 +457,7 @@ void private_force_update(MMD_float* f, const int32_t j, const MMD_float x, cons
 #include <immintrin.h>
 // clang-format off
 __declspec(vector_variant(implements(private_force_update(MMD_float* f, const int32_t j, const MMD_float x, const MMD_float y, const MMD_float z)),
-                          uniform(ff),
+                          uniform(f),
                           vectorlength(16),
                           mask,
                           processor(knl))) // clang-format on
