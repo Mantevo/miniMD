@@ -77,11 +77,17 @@ Neighbor::~Neighbor()
 
   if(bincount)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:bincount)
+#endif
     free(bincount);
   }
 
   if(bins)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:bins)
+#endif
     free(bins);
   }
 }
@@ -136,7 +142,7 @@ void Neighbor::build(Atom &atom)
   const int *const       type   = atom.type;
   int                    ntypes = atom.ntypes;
 
-  resize = 1;
+  int resize = 1;
 
   while(resize)
   {
@@ -247,30 +253,117 @@ void Neighbor::build(Atom &atom)
 
 void Neighbor::binatoms(Atom &atom, int count)
 {
-  const int              nlocal = atom.nlocal;
-  const int              nall   = count < 0 ? atom.nlocal + atom.nghost : count;
-  const MMD_float *const x      = atom.x;
+  const int              nall = count < 0 ? atom.nlocal + atom.nghost : count;
+  const MMD_float *const x    = atom.x;
 
   xprd = atom.box.xprd;
   yprd = atom.box.yprd;
   zprd = atom.box.zprd;
 
-  resize = 1;
+  int resize = 1;
+
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  const int mbins         = this->mbins;
+  int       atoms_per_bin = this->atoms_per_bin;
+  int *     bins          = this->bins;
+  int *     bincount      = this->bincount;
+  MMD_float xprd          = this->xprd;
+  MMD_float yprd          = this->yprd;
+  MMD_float zprd          = this->zprd;
+  int       mbinx         = this->mbinx;
+  int       mbiny         = this->mbiny;
+  int       mbinxlo       = this->mbinxlo;
+  int       mbinylo       = this->mbinylo;
+  int       mbinzlo       = this->mbinzlo;
+  MMD_float bininvx       = this->bininvx;
+  MMD_float bininvy       = this->bininvy;
+  MMD_float bininvz       = this->bininvz;
+  int       nbinx         = this->nbinx;
+  int       nbiny         = this->nbiny;
+  int       nbinz         = this->nbinz;
+
+  // Ensure that the atom positions are up to date
+  // TODO: Remove this once we can
+  #pragma omp target enter data map(alloc:x[0:nall * PAD])
+  #pragma omp target update to(x[0:nall * PAD])
+#endif
 
   while(resize > 0)
   {
-
     resize = 0;
+
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for
+#else
     #pragma omp parallel for
+#endif
     for(int i = 0; i < mbins; i++)
     {
       bincount[i] = 0;
     }
 
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for
+#else
     #pragma omp parallel for
+#endif
+    for(int i = 0; i < mbins * atoms_per_bin; ++i)
+    {
+      bins[i] = 0;
+    }
+
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for map(tofrom:resize)
+#else
+    #pragma omp parallel for
+#endif
     for(int i = 0; i < nall; i++)
     {
-      const int ibin = coord2bin(x[i * PAD + 0], x[i * PAD + 1], x[i * PAD + 2]);
+      // Manually inlined coord2bin
+      // FIXME: Workaround for automatic copying of class members.
+      // const int ibin = coord2bin(x[i * PAD + 0], x[i * PAD + 1], x[i * PAD + 2]);
+      MMD_float px = x[i * PAD + 0];
+      MMD_float py = x[i * PAD + 1];
+      MMD_float pz = x[i * PAD + 2];
+      int       ix, iy, iz;
+      if(px >= xprd)
+      {
+        ix = ( int )((px - xprd) * bininvx) + nbinx - mbinxlo;
+      }
+      else if(px >= 0.0)
+      {
+        ix = ( int )(px * bininvx) - mbinxlo;
+      }
+      else
+      {
+        ix = ( int )(px * bininvx) - mbinxlo - 1;
+      }
+      if(py >= yprd)
+      {
+        iy = ( int )((py - yprd) * bininvy) + nbiny - mbinylo;
+      }
+      else if(py >= 0.0)
+      {
+        iy = ( int )(py * bininvy) - mbinylo;
+      }
+      else
+      {
+        iy = ( int )(py * bininvy) - mbinylo - 1;
+      }
+      if(pz >= zprd)
+      {
+        iz = ( int )((pz - zprd) * bininvz) + nbinz - mbinzlo;
+      }
+      else if(pz >= 0.0)
+      {
+        iz = ( int )(pz * bininvz) - mbinzlo;
+      }
+      else
+      {
+        iz = ( int )(pz * bininvz) - mbinzlo - 1;
+      }
+      int ibin = (iz * mbiny * mbinx + iy * mbinx + ix + 1);
 
       if(bincount[ibin] < atoms_per_bin)
       {
@@ -287,11 +380,31 @@ void Neighbor::binatoms(Atom &atom, int count)
 
     if(resize)
     {
+#ifdef USE_OFFLOAD
+      #pragma omp target exit data map(delete:bins)
+#endif
       free(bins);
       atoms_per_bin *= 2;
       bins = ( int * )malloc(mbins * atoms_per_bin * sizeof(int));
+#ifdef USE_OFFLOAD
+      #pragma omp target enter data map(alloc:bins[0:mbins * atoms_per_bin])
+#endif
     }
   }
+
+#ifdef USE_OFFLOAD
+  // Synchronize the bincount and bins arrays across host/device
+  // TODO: Remove this once the neighbor list build and atom sort are offloaded
+  #pragma omp target update from(bincount[0:mbins], bins[0:mbins * atoms_per_bin])
+
+  // Free x again
+  // TODO: Remove this once we can
+  #pragma omp target exit data map(delete:x)
+
+  // FIXME: Workaround for automatic copying of class members.
+  this->atoms_per_bin = atoms_per_bin;
+  this->bins          = bins;
+#endif
 }
 
 /* convert xyz atom coords into local bin #
@@ -366,16 +479,15 @@ int Neighbor::setup(Atom &atom)
   MMD_float coord;
   int       mbinxhi, mbinyhi, mbinzhi;
   int       nextx, nexty, nextz;
-  int       num_omp_threads = threads->omp_num_threads;
 
   for(int i = 0; i < ntypes * ntypes; i++)
   {
     cutneighsq[i] = cutneigh * cutneigh;
   }
 
-  xprd = atom.box.xprd;
-  yprd = atom.box.yprd;
-  zprd = atom.box.zprd;
+  const MMD_float xprd = atom.box.xprd;
+  const MMD_float yprd = atom.box.yprd;
+  const MMD_float zprd = atom.box.zprd;
 
   /*
   c bins must evenly divide into box size,
@@ -518,17 +630,30 @@ int Neighbor::setup(Atom &atom)
 
   if(bincount)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:bincount)
+#endif
     free(bincount);
   }
 
-  bincount = ( int * )malloc(mbins * num_omp_threads * sizeof(int));
+  bincount = ( int * )malloc(mbins * sizeof(int));
+#ifdef USE_OFFLOAD
+  #pragma omp target enter data map(alloc:bincount[0:mbins])
+#endif
 
   if(bins)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:bins)
+#endif
     free(bins);
   }
 
-  bins = ( int * )malloc(mbins * num_omp_threads * atoms_per_bin * sizeof(int));
+  bins = ( int * )malloc(mbins * atoms_per_bin * sizeof(int));
+#ifdef USE_OFFLOAD
+  #pragma omp target enter data map(alloc:bins[0:mbins * atoms_per_bin])
+#endif
+
   return 0;
 }
 

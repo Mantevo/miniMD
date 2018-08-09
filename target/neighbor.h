@@ -84,8 +84,6 @@ private:
   MMD_float binsizex, binsizey, binsizez;
   MMD_float bininvx, bininvy, bininvz;
 
-  int resize;
-
   MMD_float bindist(int, int, int);                     // distance between binx
   int       coord2bin(MMD_float, MMD_float, MMD_float); // mapping atom coord to a bin
 };
