@@ -40,7 +40,7 @@
 
 Force::Force(int ntypes_)
 {
-  cutforce = 0.0;
+  cutforce       = 0.0;
   use_oldcompute = 0;
 
   reneigh = 1;
