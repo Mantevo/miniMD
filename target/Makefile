@@ -1,110 +1,52 @@
-# Multiple-machine Makefile
+srcdir=.
+include $(srcdir)/Makefile.$(TOOLS)
 
-SHELL = /bin/sh
+PREFIX?=.
 
-# Files
+ROOT=miniMD
+TARGETS=
+TARGETS+=$(PREFIX)/$(ROOT)_$(TOOLS)
+CLEANFILES=$(TARGETS)
 
-SRC =	ljs.cpp input.cpp integrate.cpp atom.cpp force_lj.cpp neighbor.cpp \
+OBJ_DIR=$(PREFIX)/Obj_$(TOOLS)
+
+all: $(TARGETS)
+
+#=======================================================================
+
+SRC=ljs.cpp input.cpp integrate.cpp atom.cpp force_lj.cpp neighbor.cpp \
 	thermo.cpp comm.cpp timer.cpp output.cpp setup.cpp
-INC =	ljs.h atom.h force.h neighbor.h thermo.h timer.h comm.h integrate.h threadData.h variant.h openmp.h \
+INC=ljs.h atom.h force.h neighbor.h thermo.h timer.h comm.h integrate.h threadData.h variant.h openmp.h \
 	types.h miniMD_math.h
 
-# Definitions
+OBJ_base = $(SRC:.cpp=.o)
+OBJ= $(addprefix $(OBJ_DIR)/,$(OBJ_base))
+DEP_base = $(SRC:.cpp=.d)
+DEP= $(addprefix $(OBJ_DIR)/,$(DEP_base))
 
-ROOT =	miniMD
-EXE =	$(ROOT)_$@
-OBJ =	$(SRC:.cpp=.o)
+LDFLAGS = $(COMMON_LDFLAGS)
 
-# Help
+$(OBJ): | $(OBJ_DIR)
 
-help:
-	@echo 'Type "make target {Options}" where target is one of:'
-	@echo '      openmpi     (using OpenMPI)'
-	@echo '      intel       (using intelMPI)'
-	@echo '      clang       (using MPI-Stubs)'
-	@echo '      cray        (using CrayCompiler for CPUs)'
-	@echo '      cray_intel  (using Cray Wrapper for Intel compiler for CPUs)'
-	@echo 'Options (not all of which apply for each target):'
-	@echo '      KNC=yes     (compile for XeonPhi)'
-	@echo '      SP=yes      (compile for single precision [32bit floats])'
-	@echo '      DEBUG=yes   (compile debug mode)'
-	@echo '      AVX=yes     (compile for avx [DEFAULT])'
-	@echo '      SIMD=yes    (use "pragma simd" [DEFAULT])'
-	@echo '      RED_PREC=yes   (use reduced precision math intrinsics)'
-	@echo '      ANSI_ALIAS=yes (compile with ansi-alias flag)'
-	@echo '      GSUNROLL=yes   (compile with flags for XeonPhi which unroll gather/scatter operations [DEFAULT])'
-	@echo '      LIBRT=yes   (use librt for timing [more precise])'
-	@echo '      PAD=[3,4]   (pad data to 3 or 4 elements [default 3 = no padding])'
-	@echo '(Good) Examples:'
-	@echo '    Modern CPUs (Intel Sandy Bridge, AMD Interlagos or newer):'
-	@echo '      make openmpi -j 32'
-	@echo '    Intel Xeon Phi:'
-	@echo '      make intel -j 32 KNC=yes ANSI_ALIAS=yes SIMD=no'
+$(DEP): | $(OBJ_DIR)
 
-# Targets
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
 
-openmpi:
-	@if [ ! -d Obj_$@ ]; then mkdir Obj_$@; fi
-	@cp -p $(SRC) $(INC) Obj_$@
-	@cp Makefile.$@ Obj_$@/Makefile
-	@cd Obj_$@; \
-	$(MAKE)  "OBJ = $(OBJ)" "INC = $(INC)" "EXE = ../$(EXE)" ../$(EXE)
-#	@if [ -d Obj_$@ ]; then cd Obj_$@; rm $(SRC) $(INC) Makefile*; fi
+$(OBJ_DIR)/%.o: $(srcdir)/%.cpp $(INC) $(srcdir)/Makefile  $(srcdir)/Makefile.$(TOOLS)
+$(OBJ_DIR)/%.o: $(srcdir)/%.cpp $(OBJ_DIR)/%.d $(srcdir)/Makefile $(srcdir)/Makefile.$(TOOLS)
+	$(CC) -o $@  -c $< $(CCFLAGS) -MD
 
-cray:
-	@if [ ! -d Obj_$@ ]; then mkdir Obj_$@; fi
-	@cp -p $(SRC) $(INC) Obj_$@
-	@cp Makefile.$@ Obj_$@/Makefile
-	@cd Obj_$@; \
-	$(MAKE)  "OBJ = $(OBJ)" "INC = $(INC)" "EXE = ../$(EXE)" ../$(EXE)
+-include $(DEPS)
 
-cray_intel:
-	@if [ ! -d Obj_$@ ]; then mkdir Obj_$@; fi
-	@cp -p $(SRC) $(INC) Obj_$@
-	@cp Makefile.$@ Obj_$@/Makefile
-	@cd Obj_$@; \
-	$(MAKE)  "OBJ = $(OBJ)" "INC = $(INC)" "EXE = ../$(EXE)" ../$(EXE)
+$(PREFIX)/$(ROOT)_$(TOOLS): $(OBJ) $(srcdir)/Makefile $(srcdir)/Makefile.$(TOOLS)
+	$(LINK) $(OBJ) $(LINKFLAGS) $(USRLIB) $(SYSLIB)-o $@
+	$(SIZE) $@
 
-intel:
-	@if [ ! -d Obj_$@ ]; then mkdir Obj_$@; fi
-	@cp -p $(SRC) $(INC) Obj_$@
-	@cp Makefile.$@ Obj_$@/Makefile
-	@cd Obj_$@; \
-	$(MAKE)  "OBJ = $(OBJ)" "INC = $(INC)" "EXE = ../$(EXE)" ../$(EXE)
-#       @if [ -d Obj_$@ ]; then cd Obj_$@; rm $(SRC) $(INC) Makefile*; fi
-
-clang:
-	if [ ! -d Obj_$@ ]; then mkdir Obj_$@; fi
-	@cp -p $(SRC) $(INC) Obj_$@
-	@cp -r -p MPI-Stubs Obj_$@
-	@cp Makefile.$@ Obj_$@/Makefile
-	@cd Obj_$@; \
-	$(MAKE)  "OBJ = $(OBJ)" "INC = $(INC)" "EXE = ../$(EXE)" ../$(EXE)
-
-
-# Clean
+CLEANFILES += $(OBJ)
+CLEANFILES += $(DEP)
 
 clean:
-	rm -r Obj_*
+	rm -rf  $(CLEANFILES)
 
-clean_openmpi:
-	rm -r Obj_openmpi
-
-clean_intel:
-	rm -r Obj_intel
-
-clean_cray:
-	rm -r Obj_cray
-	
-clean_cray_intel:
-	rm -r Obj_cray_intel
-
-# Test
-
-scope=0
-input=lj
-halfneigh=0
-path=""
-
-test:
-	bash run_tests ${scope} ${input} ${halfneigh} ${path}   
+#=======================================================================

@@ -12,11 +12,11 @@ SIMD = no
 
 
 CC =		clang++
-CCFLAGS =	-O3 -I ./MPI-Stubs/ -fopenmp
+CCFLAGS =	-O3 -I $(srcdir)/MPI-Stubs/ -fopenmp -MD
 LINK =		clang++
 LINKFLAGS =	-O3 -fopenmp
-USRLIB =	-L ./MPI-Stubs/ -l mpi_stubs
-SYSLIB =	
+USRLIB =	-L $(srcdir)/MPI-Stubs/ -lmpi_stubs
+SYSLIB =
 SIZE =		size
 
 ifeq ($(SIMD), yes)
@@ -29,13 +29,13 @@ LINKFLAGS += -ffast-math
 endif
 
 ifeq ($(PAD), 3)
-CCFLAGS += -DPAD=3 
-LINKFLAGS += -DPAD=3 
+CCFLAGS += -DPAD=3
+LINKFLAGS += -DPAD=3
 endif
 
 ifeq ($(PAD), 4)
-CCFLAGS += -DPAD=4 
-LINKFLAGS += -DPAD=4 
+CCFLAGS += -DPAD=4
+LINKFLAGS += -DPAD=4
 endif
 
 ifeq ($(DEBUG), yes)
@@ -44,7 +44,7 @@ LINKFLAGS += -g -debug inline-debug-info
 endif
 
 ifeq ($(SP), yes)
-CCFLAGS += -DPRECISION=1 
+CCFLAGS += -DPRECISION=1
 LINKFLAGS += -DPRECISION=1
 else
 CCFLAGS += -DPRECISION=2
@@ -65,19 +65,3 @@ ifeq ($(OFFLOAD), nvptx)
 CCFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda -DUSE_OFFLOAD
 LINKFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda
 endif
-
-# Link rule
-
-$(EXE):	$(OBJ)
-	$(LINK) $(OBJ) $(LINKFLAGS) $(USRLIB) $(SYSLIB) -o $(EXE)
-	$(SIZE) $(EXE)
-	
-
-# Compilation rules
-
-.cpp.o:
-	$(CC) $(CCFLAGS) -c $*.cpp -o $*.o
- 
-# Individual dependencies
-
-$(OBJ): $(INC)
