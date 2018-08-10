@@ -128,7 +128,7 @@ void output(In &in, Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Th
       fprintf(stdout, "  density: %lf\n", in.rho);
       fprintf(stdout, "  force_type: %s\n", in.forcetype == FORCELJ ? "LJ" : "EAM");
       fprintf(stdout, "  force_cutoff: %lf\n", force->cutforce);
-      fprintf(stdout, "  force_params: %2.2lf %2.2lf\n", force->epsilon, force->sigma);
+      fprintf(stdout, "  force_params: %2.2lf %2.2lf\n", ( double )*force->epsilon, ( double )*force->sigma);
       fprintf(stdout, "  neighbor_cutoff: %lf\n", neighbor.cutneigh);
       fprintf(stdout, "  neighbor_type: %i\n", neighbor.halfneigh);
       fprintf(stdout, "  neighbor_bins: %i %i %i\n", neighbor.nbinx, neighbor.nbiny, neighbor.nbinz);
@@ -156,7 +156,7 @@ void output(In &in, Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Th
     fprintf(fp, "  density: %lf\n", in.rho);
     fprintf(fp, "  force_type: %s\n", in.forcetype == FORCELJ ? "LJ" : "EAM");
     fprintf(fp, "  force_cutoff: %lf\n", force->cutforce);
-    fprintf(fp, "  force_params: %2.2lf %2.2lf\n", force->epsilon, force->sigma);
+    fprintf(fp, "  force_params: %2.2lf %2.2lf\n", ( double )*force->epsilon, ( double )*force->sigma);
     fprintf(fp, "  neighbor_cutoff: %lf\n", neighbor.cutneigh);
     fprintf(fp, "  neighbor_type: %i\n", neighbor.halfneigh);
     fprintf(fp, "  neighbor_bins: %i %i %i\n", neighbor.nbinx, neighbor.nbiny, neighbor.nbinz);

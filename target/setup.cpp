@@ -145,7 +145,7 @@ void read_lammps_header(Atom &atom)
 
     double xlo, xhi, ylo, yhi, zlo, zhi;
 
-    if((ptr == strchr(line, '#')))
+    if(ptr == strchr(line, '#'))
     {
       *ptr = '\0';
     }
