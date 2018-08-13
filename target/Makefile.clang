@@ -12,9 +12,9 @@ SIMD = no
 
 
 CC =		clang++
-CCFLAGS =	-O3 -I $(srcdir)/MPI-Stubs/ -fopenmp -MD
+CCFLAGS =	-O3 -I $(srcdir)/MPI-Stubs/ -fopenmp -MD -g
 LINK =		clang++
-LINKFLAGS =	-O3 -fopenmp
+LINKFLAGS =	-O3 -fopenmp -g
 USRLIB =	-L $(srcdir)/MPI-Stubs/ -lmpi_stubs
 SYSLIB =
 SIZE =		size
