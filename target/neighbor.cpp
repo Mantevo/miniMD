@@ -55,22 +55,52 @@ Neighbor::Neighbor(int ntypes_)
   halfneigh      = 0;
   ghost_newton   = 1;
   cutneighsq     = new MMD_float[ntypes * ntypes];
+#ifdef USE_OFFLOAD
+  #pragma omp target enter data map(alloc:cutneighsq[0:ntypes * ntypes])
+#endif
 }
 
 Neighbor::~Neighbor()
 {
+  if(cutneighsq)
+  {
+#ifdef USE_OFFLOAD
+    #pragma opm target exit data map(delete:cutneighsq)
+#endif
+    delete cutneighsq;
+  }
+
 #ifdef ALIGNMALLOC
   if(numneigh)
+  {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:numneigh)
+#endif
     _mm_free(numneigh);
+  }
+
   if(neighbors)
+  {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:neighbors)
+#endif
     _mm_free(neighbors);
+  }
+
 #else
   if(numneigh)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:numneigh)
+#endif
     free(numneigh);
   }
+
   if(neighbors)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:neighbors)
+#endif
     free(neighbors);
   }
 #endif
@@ -109,25 +139,50 @@ void Neighbor::build(Atom &atom)
     nmax = nall;
 #ifdef ALIGNMALLOC
     if(numneigh)
+    {
+#ifdef USE_OFFLOAD
+      #pragma omp target exit data map(delete:numneigh)
+#endif
       _mm_free(numneigh);
+    }
     numneigh = ( int * )_mm_malloc(nmax * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
+#ifdef USE_OFFLOAD
+    #pragma omp target enter data map(alloc:numneigh[0:nmax + ALIGNMALLOC/sizeof(int)])
+#endif
     if(neighbors)
+    {
+#ifdef USE_OFFLOAD
+      #pragma omp target exit data map(delete:neighbors)
+#endif
       _mm_free(neighbors);
+    }
     neighbors = ( int * )_mm_malloc(nmax * maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
+#ifdef USE_OFFLOAD
+    #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs + ALIGNMALLOC/sizeof(int)])
+#endif
 #else
-
     if(numneigh)
     {
+#ifdef USE_OFFLOAD
+      #pragma omp target exit data map(delete:numneigh)
+#endif
       free(numneigh);
     }
 
     if(neighbors)
     {
+#ifdef USE_OFFLOAD
+      #pragma omp target exit data map(delete:neighbors)
+#endif
       free(neighbors);
     }
 
     numneigh  = ( int * )malloc(nmax * sizeof(int));
     neighbors = ( int * )malloc(nmax * maxneighs * sizeof(int));
+#ifdef USE_OFFLOAD
+    #pragma omp target enter data map(alloc:numneigh[0:nmax])
+    #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs])
+#endif
 #endif
   }
 
@@ -144,19 +199,60 @@ void Neighbor::build(Atom &atom)
 
   int resize = 1;
 
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  int        count         = this->count;
+  int        maxneighs     = this->maxneighs;
+  int *      neighbors     = this->neighbors;
+  int *      numneigh      = this->numneigh;
+  int *      bins          = this->bins;
+  int *      bincount      = this->bincount;
+  int *      stencil       = this->stencil;
+  MMD_float *cutneighsq    = this->cutneighsq;
+  int        nstencil      = this->nstencil;
+  int        atoms_per_bin = this->atoms_per_bin;
+  int        halfneigh     = this->halfneigh;
+  int        ghost_newton  = this->ghost_newton;
+  MMD_float  xprd          = this->xprd;
+  MMD_float  yprd          = this->yprd;
+  MMD_float  zprd          = this->zprd;
+  int        mbinx         = this->mbinx;
+  int        mbiny         = this->mbiny;
+  int        mbinxlo       = this->mbinxlo;
+  int        mbinylo       = this->mbinylo;
+  int        mbinzlo       = this->mbinzlo;
+  MMD_float  bininvx       = this->bininvx;
+  MMD_float  bininvy       = this->bininvy;
+  MMD_float  bininvz       = this->bininvz;
+  int        nbinx         = this->nbinx;
+  int        nbiny         = this->nbiny;
+  int        nbinz         = this->nbinz;
+
+  // Ensure that the atom positions are up to date
+  // TODO: Remove this once we can
+  #pragma omp target enter data map(alloc:x[0:nall * PAD])
+  #pragma omp target update to(x[0:nall * PAD])
+
+  // Ensure that the atom types are copied
+  // TODO: Remove this once we can
+  #pragma omp target enter data map(alloc:type[0:nall])
+  #pragma omp target update to(type[0:nall])
+#endif
+
   while(resize)
   {
-
     int new_maxneighs = maxneighs;
     resize            = 0;
 
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute map(tofrom:resize, new_maxneighs)
+#else
     #pragma omp parallel for
+#endif
     for(int i = 0; i < nlocal; i++)
     {
+      numneigh[i]   = 0;
       int *neighptr = &neighbors[i * maxneighs];
-      /* if necessary, goto next page and add pages */
-
-      int n = 0;
 
       const MMD_float xtmp = x[i * PAD + 0];
       const MMD_float ytmp = x[i * PAD + 1];
@@ -164,10 +260,47 @@ void Neighbor::build(Atom &atom)
 
       const int type_i = type[i];
 
-      /* loop over atoms in i's bin,
-       */
-
-      const int ibin = coord2bin(xtmp, ytmp, ztmp);
+      // Manually inlined coord2bin
+      // FIXME: Workaround for automatic copying of class members.
+      // const int ibin = coord2bin(xtmp, ytmp, ztmp);
+      int ix, iy, iz;
+      if(xtmp >= xprd)
+      {
+        ix = ( int )((xtmp - xprd) * bininvx) + nbinx - mbinxlo;
+      }
+      else if(xtmp >= 0.0)
+      {
+        ix = ( int )(xtmp * bininvx) - mbinxlo;
+      }
+      else
+      {
+        ix = ( int )(xtmp * bininvx) - mbinxlo - 1;
+      }
+      if(ytmp >= yprd)
+      {
+        iy = ( int )((ytmp - yprd) * bininvy) + nbiny - mbinylo;
+      }
+      else if(ytmp >= 0.0)
+      {
+        iy = ( int )(ytmp * bininvy) - mbinylo;
+      }
+      else
+      {
+        iy = ( int )(ytmp * bininvy) - mbinylo - 1;
+      }
+      if(ztmp >= zprd)
+      {
+        iz = ( int )((ztmp - zprd) * bininvz) + nbinz - mbinzlo;
+      }
+      else if(ztmp >= 0.0)
+      {
+        iz = ( int )(ztmp * bininvz) - mbinzlo;
+      }
+      else
+      {
+        iz = ( int )(ztmp * bininvz) - mbinzlo - 1;
+      }
+      int ibin = (iz * mbiny * mbinx + iy * mbinx + ix + 1);
 
       for(int k = 0; k < nstencil; k++)
       {
@@ -177,6 +310,11 @@ void Neighbor::build(Atom &atom)
 
         if(ibin == jbin)
         {
+#ifdef USE_OFFLOAD
+          #pragma omp parallel for
+#else
+          #pragma omp simd
+#endif
           for(int m = 0; m < bincount[jbin]; m++)
           {
             const int j = loc_bin[m];
@@ -193,14 +331,25 @@ void Neighbor::build(Atom &atom)
             const int       type_j = type[j];
             const MMD_float rsq    = delx * delx + dely * dely + delz * delz;
 
-            if((rsq <= cutneighsq[type_i * ntypes + type_j]))
+            // TODO: We should do this differently for SIMD
+            if(rsq <= cutneighsq[type_i * ntypes + type_j])
             {
-              neighptr[n++] = j;
+              int idx;
+#ifdef USE_OFFLOAD
+              #pragma omp atomic capture
+#endif
+              idx           = numneigh[i]++;
+              neighptr[idx] = j;
             }
           }
         }
         else
         {
+#ifdef USE_OFFLOAD
+          #pragma omp parallel for
+#else
+          #pragma omp simd
+#endif
           for(int m = 0; m < bincount[jbin]; m++)
           {
             const int j = loc_bin[m];
@@ -216,23 +365,27 @@ void Neighbor::build(Atom &atom)
             const int       type_j = type[j];
             const MMD_float rsq    = delx * delx + dely * dely + delz * delz;
 
-            if((rsq <= cutneighsq[type_i * ntypes + type_j]))
+            // TODO: We should do this differently for SIMD
+            if(rsq <= cutneighsq[type_i * ntypes + type_j])
             {
-              neighptr[n++] = j;
+              int idx;
+#ifdef USE_OFFLOAD
+              #pragma omp atomic capture
+#endif
+              idx           = numneigh[i]++;
+              neighptr[idx] = j;
             }
           }
         }
       }
 
-      numneigh[i] = n;
-
-      if(n >= maxneighs)
+      if(numneigh[i] >= maxneighs)
       {
         resize = 1;
 
-        if(n >= new_maxneighs)
+        if(numneigh[i] >= new_maxneighs)
         {
-          new_maxneighs = n;
+          new_maxneighs = numneigh[i];
         }
       }
     }
@@ -241,14 +394,44 @@ void Neighbor::build(Atom &atom)
     {
       maxneighs = new_maxneighs * 1.2;
 #ifdef ALIGNMALLOC
+#ifdef USE_OFFLOAD
+      #pragma omp target exit data map(delete:neighbors)
+#endif
       _mm_free(neighbors);
       neighbors = ( int * )_mm_malloc(nmax * maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
+#ifdef USE_OFFLOAD
+      #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs + ALIGNMALLOC/sizeof(int)])
+#endif
 #else
+#ifdef USE_OFFLOAD
+      #pragma omp target exit data map(delete:neighbors)
+#endif
       free(neighbors);
       neighbors = ( int * )malloc(nmax * maxneighs * sizeof(int));
+#ifdef USE_OFFLOAD
+      #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs])
+#endif
 #endif
     }
   }
+
+#ifdef USE_OFFLOAD
+  // Synchronize the neighbors and numneigh arrays across host/device
+  // TODO: Remove this once the force compute is offloaded
+  #pragma omp target update from(numneigh[0:nmax], neighbors[0:nmax * maxneighs])
+
+  // Free x again
+  // TODO: Remove this once we can
+  #pragma omp target exit data map(delete:x)
+
+  // Free type again
+  // TODO: Remove this once we can
+  #pragma omp target exit data map(delete:type)
+
+  // FIXME: Workaround for automatic copying of class members.
+  this->maxneighs = maxneighs;
+  this->neighbors = neighbors;
+#endif
 }
 
 void Neighbor::binatoms(Atom &atom, int count)
@@ -484,6 +667,9 @@ int Neighbor::setup(Atom &atom)
   {
     cutneighsq[i] = cutneigh * cutneigh;
   }
+#ifdef USE_OFFLOAD
+  #pragma omp target update to(cutneighsq[0:ntypes * ntypes])
+#endif
 
   const MMD_float xprd = atom.box.xprd;
   const MMD_float yprd = atom.box.yprd;
@@ -595,10 +781,16 @@ int Neighbor::setup(Atom &atom)
 
   if(stencil)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target exit data map(delete:stencil)
+#endif
     free(stencil);
   }
 
   stencil = ( int * )malloc(nmax * sizeof(int));
+#ifdef USE_OFFLOAD
+  #pragma omp target enter data map(alloc:stencil[0:nmax])
+#endif
 
   nstencil   = 0;
   int kstart = -nextz;
@@ -625,6 +817,9 @@ int Neighbor::setup(Atom &atom)
       }
     }
   }
+#ifdef USE_OFFLOAD
+  #pragma omp target update to(stencil[0:nmax])
+#endif
 
   mbins = mbinx * mbiny * mbinz;
 
