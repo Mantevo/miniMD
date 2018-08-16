@@ -33,6 +33,7 @@
 #include "stdlib.h"
 
 #include "neighbor.h"
+#include "offload.h"
 #include "openmp.h"
 
 #define FACTOR 0.999
@@ -54,72 +55,16 @@ Neighbor::Neighbor(int ntypes_)
   threads        = NULL;
   halfneigh      = 0;
   ghost_newton   = 1;
-  cutneighsq     = new MMD_float[ntypes * ntypes];
-#ifdef USE_OFFLOAD
-  #pragma omp target enter data map(alloc:cutneighsq[0:ntypes * ntypes])
-#endif
+  cutneighsq     = ( MMD_float * )mmd_alloc(ntypes * ntypes * sizeof(MMD_float));
 }
 
 Neighbor::~Neighbor()
 {
-  if(cutneighsq)
-  {
-#ifdef USE_OFFLOAD
-    #pragma opm target exit data map(delete:cutneighsq)
-#endif
-    delete cutneighsq;
-  }
-
-#ifdef ALIGNMALLOC
-  if(numneigh)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:numneigh)
-#endif
-    _mm_free(numneigh);
-  }
-
-  if(neighbors)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:neighbors)
-#endif
-    _mm_free(neighbors);
-  }
-
-#else
-  if(numneigh)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:numneigh)
-#endif
-    free(numneigh);
-  }
-
-  if(neighbors)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:neighbors)
-#endif
-    free(neighbors);
-  }
-#endif
-
-  if(bincount)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:bincount)
-#endif
-    free(bincount);
-  }
-
-  if(bins)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:bins)
-#endif
-    free(bins);
-  }
+  mmd_free(cutneighsq);
+  mmd_free(numneigh);
+  mmd_free(neighbors);
+  mmd_free(bincount);
+  mmd_free(bins);
 }
 
 /* binned neighbor list construction with full Newton's 3rd law
@@ -136,54 +81,9 @@ void Neighbor::build(Atom &atom)
 
   if(nall > nmax)
   {
-    nmax = nall;
-#ifdef ALIGNMALLOC
-    if(numneigh)
-    {
-#ifdef USE_OFFLOAD
-      #pragma omp target exit data map(delete:numneigh)
-#endif
-      _mm_free(numneigh);
-    }
-    numneigh = ( int * )_mm_malloc(nmax * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
-#ifdef USE_OFFLOAD
-    #pragma omp target enter data map(alloc:numneigh[0:nmax + ALIGNMALLOC/sizeof(int)])
-#endif
-    if(neighbors)
-    {
-#ifdef USE_OFFLOAD
-      #pragma omp target exit data map(delete:neighbors)
-#endif
-      _mm_free(neighbors);
-    }
-    neighbors = ( int * )_mm_malloc(nmax * maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
-#ifdef USE_OFFLOAD
-    #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs + ALIGNMALLOC/sizeof(int)])
-#endif
-#else
-    if(numneigh)
-    {
-#ifdef USE_OFFLOAD
-      #pragma omp target exit data map(delete:numneigh)
-#endif
-      free(numneigh);
-    }
-
-    if(neighbors)
-    {
-#ifdef USE_OFFLOAD
-      #pragma omp target exit data map(delete:neighbors)
-#endif
-      free(neighbors);
-    }
-
-    numneigh  = ( int * )malloc(nmax * sizeof(int));
-    neighbors = ( int * )malloc(nmax * maxneighs * sizeof(int));
-#ifdef USE_OFFLOAD
-    #pragma omp target enter data map(alloc:numneigh[0:nmax])
-    #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs])
-#endif
-#endif
+    nmax      = nall;
+    numneigh  = ( int * )mmd_realloc(numneigh, nmax * sizeof(int));
+    neighbors = ( int * )mmd_realloc(neighbors, nmax * maxneighs * sizeof(int));
   }
 
   /* bin local & ghost atoms */
@@ -393,25 +293,7 @@ void Neighbor::build(Atom &atom)
     if(resize)
     {
       maxneighs = new_maxneighs * 1.2;
-#ifdef ALIGNMALLOC
-#ifdef USE_OFFLOAD
-      #pragma omp target exit data map(delete:neighbors)
-#endif
-      _mm_free(neighbors);
-      neighbors = ( int * )_mm_malloc(nmax * maxneighs * sizeof(int) + ALIGNMALLOC, ALIGNMALLOC);
-#ifdef USE_OFFLOAD
-      #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs + ALIGNMALLOC/sizeof(int)])
-#endif
-#else
-#ifdef USE_OFFLOAD
-      #pragma omp target exit data map(delete:neighbors)
-#endif
-      free(neighbors);
-      neighbors = ( int * )malloc(nmax * maxneighs * sizeof(int));
-#ifdef USE_OFFLOAD
-      #pragma omp target enter data map(alloc:neighbors[0:nmax * maxneighs])
-#endif
-#endif
+      neighbors = ( int * )mmd_realloc(neighbors, nmax * maxneighs * sizeof(int));
     }
   }
 
@@ -563,15 +445,8 @@ void Neighbor::binatoms(Atom &atom, int count)
 
     if(resize)
     {
-#ifdef USE_OFFLOAD
-      #pragma omp target exit data map(delete:bins)
-#endif
-      free(bins);
       atoms_per_bin *= 2;
-      bins = ( int * )malloc(mbins * atoms_per_bin * sizeof(int));
-#ifdef USE_OFFLOAD
-      #pragma omp target enter data map(alloc:bins[0:mbins * atoms_per_bin])
-#endif
+      bins = ( int * )mmd_realloc(bins, mbins * atoms_per_bin * sizeof(int));
     }
   }
 
@@ -779,18 +654,8 @@ int Neighbor::setup(Atom &atom)
 
   nmax = (2 * nextz + 1) * (2 * nexty + 1) * (2 * nextx + 1);
 
-  if(stencil)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:stencil)
-#endif
-    free(stencil);
-  }
-
-  stencil = ( int * )malloc(nmax * sizeof(int));
-#ifdef USE_OFFLOAD
-  #pragma omp target enter data map(alloc:stencil[0:nmax])
-#endif
+  mmd_free(stencil);
+  stencil = ( int * )mmd_alloc(nmax * sizeof(int));
 
   nstencil   = 0;
   int kstart = -nextz;
@@ -823,31 +688,11 @@ int Neighbor::setup(Atom &atom)
 
   mbins = mbinx * mbiny * mbinz;
 
-  if(bincount)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:bincount)
-#endif
-    free(bincount);
-  }
+  mmd_free(bincount);
+  bincount = ( int * )mmd_alloc(mbins * sizeof(int));
 
-  bincount = ( int * )malloc(mbins * sizeof(int));
-#ifdef USE_OFFLOAD
-  #pragma omp target enter data map(alloc:bincount[0:mbins])
-#endif
-
-  if(bins)
-  {
-#ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:bins)
-#endif
-    free(bins);
-  }
-
-  bins = ( int * )malloc(mbins * atoms_per_bin * sizeof(int));
-#ifdef USE_OFFLOAD
-  #pragma omp target enter data map(alloc:bins[0:mbins * atoms_per_bin])
-#endif
+  mmd_free(bins);
+  bins = ( int * )mmd_alloc(mbins * atoms_per_bin * sizeof(int));
 
   return 0;
 }
