@@ -163,20 +163,17 @@ MMD_float Thermo::energy(Atom &atom, Neighbor &neighbor, Force *force)
 
 MMD_float Thermo::temperature(Atom &atom)
 {
-  MMD_int   i;
-  MMD_float vx, vy, vz;
-
   t_act = 0;
 
   MMD_float *v = atom.v;
 
   MMD_float t = 0.0;
   #pragma omp parallel for reduction(+:t)
-  for(i = 0; i < atom.nlocal; i++)
+  for(MMD_int i = 0; i < atom.nlocal; i++)
   {
-    vx = v[i * PAD + 0];
-    vy = v[i * PAD + 1];
-    vz = v[i * PAD + 2];
+    MMD_float vx = v[i * PAD + 0];
+    MMD_float vy = v[i * PAD + 1];
+    MMD_float vz = v[i * PAD + 2];
     t += (vx * vx + vy * vy + vz * vz) * atom.mass;
   }
   t_act += t;
