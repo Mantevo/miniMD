@@ -172,15 +172,12 @@ void Atom::copy(int i, int j)
 
 void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
 {
-  int i, j;
-
   if(pbc_flags[0] == 0)
   {
-
     #pragma omp parallel for
-    for(i = 0; i < n; i++)
+    for(int i = 0; i < n; i++)
     {
-      j = list[i];
+      int j = list[i];
 
       buf[3 * i]     = x[j * PAD + 0];
       buf[3 * i + 1] = x[j * PAD + 1];
@@ -189,11 +186,10 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
   }
   else
   {
-
     #pragma omp parallel for
-    for(i = 0; i < n; i++)
+    for(int i = 0; i < n; i++)
     {
-      j = list[i];
+      int j = list[i];
 
       buf[3 * i]     = x[j * PAD + 0] + pbc_flags[1] * box.xprd;
       buf[3 * i + 1] = x[j * PAD + 1] + pbc_flags[2] * box.yprd;
@@ -204,10 +200,8 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
 
 void Atom::unpack_comm(int n, int first, MMD_float *buf)
 {
-  int i;
-
   #pragma omp parallel for
-  for(i = 0; i < n; i++)
+  for(int i = 0; i < n; i++)
   {
     x[(first + i) * PAD + 0] = buf[3 * i];
     x[(first + i) * PAD + 1] = buf[3 * i + 1];
@@ -217,10 +211,8 @@ void Atom::unpack_comm(int n, int first, MMD_float *buf)
 
 void Atom::pack_reverse(int n, int first, MMD_float *buf)
 {
-  int i;
-
   #pragma omp parallel for
-  for(i = 0; i < n; i++)
+  for(int i = 0; i < n; i++)
   {
     buf[3 * i]     = f[(first + i) * PAD + 0];
     buf[3 * i + 1] = f[(first + i) * PAD + 1];
@@ -230,12 +222,10 @@ void Atom::pack_reverse(int n, int first, MMD_float *buf)
 
 void Atom::unpack_reverse(int n, int *list, MMD_float *buf)
 {
-  int i, j;
-
   #pragma omp parallel for
-  for(i = 0; i < n; i++)
+  for(int i = 0; i < n; i++)
   {
-    j = list[i];
+    int j = list[i];
 
     f[j * PAD + 0] += buf[3 * i];
     f[j * PAD + 1] += buf[3 * i + 1];
