@@ -145,7 +145,7 @@ void Neighbor::build(Atom &atom)
     resize            = 0;
 
 #ifdef USE_OFFLOAD
-    #pragma omp target teams distribute map(tofrom:resize, new_maxneighs) num_teams(2048) thread_limit(32)
+    #pragma omp target teams distribute parallel for map(tofrom:resize, new_maxneighs) num_teams(2048) thread_limit(64)
 #else
     #pragma omp parallel for
 #endif
@@ -210,11 +210,6 @@ void Neighbor::build(Atom &atom)
 
         if(ibin == jbin)
         {
-#ifdef USE_OFFLOAD
-          #pragma omp parallel for
-#else
-          #pragma omp simd
-#endif
           for(int m = 0; m < bincount[jbin]; m++)
           {
             const int j = loc_bin[m];
@@ -234,22 +229,13 @@ void Neighbor::build(Atom &atom)
             // TODO: We should do this differently for SIMD
             if(rsq <= cutneighsq[type_i * ntypes + type_j])
             {
-              int idx;
-#ifdef USE_OFFLOAD
-              #pragma omp atomic capture
-#endif
-              idx           = numneigh[i]++;
+              int idx       = numneigh[i]++;
               neighptr[idx] = j;
             }
           }
         }
         else
         {
-#ifdef USE_OFFLOAD
-          #pragma omp parallel for
-#else
-          #pragma omp simd
-#endif
           for(int m = 0; m < bincount[jbin]; m++)
           {
             const int j = loc_bin[m];
@@ -268,11 +254,7 @@ void Neighbor::build(Atom &atom)
             // TODO: We should do this differently for SIMD
             if(rsq <= cutneighsq[type_i * ntypes + type_j])
             {
-              int idx;
-#ifdef USE_OFFLOAD
-              #pragma omp atomic capture
-#endif
-              idx           = numneigh[i]++;
+              int idx       = numneigh[i]++;
               neighptr[idx] = j;
             }
           }
