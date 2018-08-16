@@ -447,7 +447,7 @@ void Comm::exchange(Atom &atom)
   }
 
   int        m, n, nsend, nrecv, nrecv1, nrecv2, nlocal;
-  MMD_float  lo, hi, value;
+  MMD_float  lo, hi;
   MMD_float *x;
 
   MPI_Request request;
@@ -630,7 +630,7 @@ void Comm::exchange(Atom &atom)
     #pragma omp parallel for reduction(+:nrecv)
     for(int i = 0; i < nrecv_atoms; ++i)
     {
-      value = buf_recv[i * 7 + idim];
+      MMD_float value = buf_recv[i * 7 + idim];
       if(value >= lo && value < hi)
       {
         nrecv++;
@@ -652,7 +652,7 @@ void Comm::exchange(Atom &atom)
     #pragma omp parallel for
     for(int i = 0; i < nrecv_atoms; ++i)
     {
-      value = buf_recv[i * 7 + idim];
+      MMD_float value = buf_recv[i * 7 + idim];
       if(value >= lo && value < hi)
       {
         int k;
