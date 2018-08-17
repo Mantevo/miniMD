@@ -177,7 +177,7 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
     #pragma omp parallel for
     for(int i = 0; i < n; i++)
     {
-      int j = list[i];
+      const int j = list[i];
 
       buf[3 * i]     = x[j * PAD + 0];
       buf[3 * i + 1] = x[j * PAD + 1];
@@ -189,7 +189,7 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
     #pragma omp parallel for
     for(int i = 0; i < n; i++)
     {
-      int j = list[i];
+      const int j = list[i];
 
       buf[3 * i]     = x[j * PAD + 0] + pbc_flags[1] * box.xprd;
       buf[3 * i + 1] = x[j * PAD + 1] + pbc_flags[2] * box.yprd;
@@ -225,7 +225,7 @@ void Atom::unpack_reverse(int n, int *list, MMD_float *buf)
   #pragma omp parallel for
   for(int i = 0; i < n; i++)
   {
-    int j = list[i];
+    const int j = list[i];
 
     f[j * PAD + 0] += buf[3 * i];
     f[j * PAD + 1] += buf[3 * i + 1];

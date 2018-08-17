@@ -630,7 +630,7 @@ void Comm::exchange(Atom &atom)
     #pragma omp parallel for reduction(+:nrecv)
     for(int i = 0; i < nrecv_atoms; ++i)
     {
-      MMD_float value = buf_recv[i * 7 + idim];
+      const MMD_float value = buf_recv[i * 7 + idim];
       if(value >= lo && value < hi)
       {
         nrecv++;
@@ -652,7 +652,7 @@ void Comm::exchange(Atom &atom)
     #pragma omp parallel for
     for(int i = 0; i < nrecv_atoms; ++i)
     {
-      MMD_float value = buf_recv[i * 7 + idim];
+      const MMD_float value = buf_recv[i * 7 + idim];
       if(value >= lo && value < hi)
       {
         int k;

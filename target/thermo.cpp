@@ -171,9 +171,9 @@ MMD_float Thermo::temperature(Atom &atom)
   #pragma omp parallel for reduction(+:t)
   for(MMD_int i = 0; i < atom.nlocal; i++)
   {
-    MMD_float vx = v[i * PAD + 0];
-    MMD_float vy = v[i * PAD + 1];
-    MMD_float vz = v[i * PAD + 2];
+    const MMD_float vx = v[i * PAD + 0];
+    const MMD_float vy = v[i * PAD + 1];
+    const MMD_float vz = v[i * PAD + 2];
     t += (vx * vx + vy * vy + vz * vz) * atom.mass;
   }
   t_act += t;
