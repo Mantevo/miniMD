@@ -3,6 +3,8 @@ include $(srcdir)/Makefile.$(TOOLS)
 
 PREFIX?=.
 
+CPPCHECK?=cppcheck
+
 ROOT=miniMD
 TARGETS=
 TARGETS+=$(PREFIX)/$(ROOT)_$(TOOLS)
@@ -36,6 +38,11 @@ $(OBJ_DIR):
 $(OBJ_DIR)/%.o: $(srcdir)/%.cpp $(INC) $(srcdir)/Makefile  $(srcdir)/Makefile.$(TOOLS)
 $(OBJ_DIR)/%.o: $(srcdir)/%.cpp $(OBJ_DIR)/%.d $(srcdir)/Makefile $(srcdir)/Makefile.$(TOOLS)
 	$(CC) -o $@  -c $< $(CCFLAGS) -MD
+
+.PHONY: cppcheck clean
+
+cppcheck: $(SRC) $(INC)
+	$(CPPCHECK) --enable=all --inconclusive --template=gcc --language=c++ --std=c++11 $(SRC) $(INC)
 
 -include $(DEPS)
 
