@@ -31,6 +31,9 @@
 #ifndef OFFLOAD_H
 #define OFFLOAD_H
 
+#include <cassert>
+#include <cstring>
+
 static void *mmd_alloc(size_t bytes)
 {
 #ifdef ALIGNMALLOC
@@ -66,6 +69,21 @@ static void *mmd_replace_alloc(void *ptr, size_t bytes)
 {
   mmd_free(ptr);
   return mmd_alloc(bytes);
+}
+
+static void *mmd_grow_alloc(void *old_ptr, size_t old_bytes, size_t new_bytes)
+{
+  char *new_ptr = ( char * )mmd_alloc(new_bytes);
+  if(old_ptr)
+  {
+    assert(old_bytes > 0);
+    std::memcpy(new_ptr, old_ptr, old_bytes);
+#ifdef USE_OFFLOAD
+    #pragma omp target update to(new_ptr[0:old_bytes])
+#endif
+    mmd_free(old_ptr);
+  }
+  return new_ptr;
 }
 
 #endif
