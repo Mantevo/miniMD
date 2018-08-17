@@ -82,8 +82,8 @@ void Neighbor::build(Atom &atom)
   if(nall > nmax)
   {
     nmax      = nall;
-    numneigh  = ( int * )mmd_realloc(numneigh, nmax * sizeof(int));
-    neighbors = ( int * )mmd_realloc(neighbors, nmax * maxneighs * sizeof(int));
+    numneigh  = ( int * )mmd_replace_alloc(numneigh, nmax * sizeof(int));
+    neighbors = ( int * )mmd_replace_alloc(neighbors, nmax * maxneighs * sizeof(int));
   }
 
   /* bin local & ghost atoms */
@@ -275,7 +275,7 @@ void Neighbor::build(Atom &atom)
     if(resize)
     {
       maxneighs = new_maxneighs * 1.2;
-      neighbors = ( int * )mmd_realloc(neighbors, nmax * maxneighs * sizeof(int));
+      neighbors = ( int * )mmd_replace_alloc(neighbors, nmax * maxneighs * sizeof(int));
     }
   }
 
@@ -428,7 +428,7 @@ void Neighbor::binatoms(Atom &atom, int count)
     if(resize)
     {
       atoms_per_bin *= 2;
-      bins = ( int * )mmd_realloc(bins, mbins * atoms_per_bin * sizeof(int));
+      bins = ( int * )mmd_replace_alloc(bins, mbins * atoms_per_bin * sizeof(int));
     }
   }
 

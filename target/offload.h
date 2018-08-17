@@ -62,7 +62,7 @@ static void mmd_free(void *ptr)
   }
 }
 
-static void *mmd_realloc(void *ptr, size_t bytes)
+static void *mmd_replace_alloc(void *ptr, size_t bytes)
 {
   mmd_free(ptr);
   return mmd_alloc(bytes);
