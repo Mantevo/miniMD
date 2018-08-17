@@ -2,15 +2,16 @@ srcdir=.
 include $(srcdir)/Makefile.$(TOOLS)
 
 PREFIX?=.
+OBJ_DIR=$(PREFIX)/Obj_$(TOOLS)
 
 CPPCHECK?=cppcheck
+BEAR?=bear
+RUN-CLANG-TIDY?=run-clang-tidy.py
 
 ROOT=miniMD
 TARGETS=
 TARGETS+=$(PREFIX)/$(ROOT)_$(TOOLS)
-CLEANFILES=$(TARGETS)
-
-OBJ_DIR=$(PREFIX)/Obj_$(TOOLS)
+CLEANFILES=$(TARGETS) $(OBJ_DIR)/compile_commands.json
 
 all: $(TARGETS)
 
@@ -39,10 +40,16 @@ $(OBJ_DIR)/%.o: $(srcdir)/%.cpp $(INC) $(srcdir)/Makefile  $(srcdir)/Makefile.$(
 $(OBJ_DIR)/%.o: $(srcdir)/%.cpp $(OBJ_DIR)/%.d $(srcdir)/Makefile $(srcdir)/Makefile.$(TOOLS)
 	$(CC) -o $@  -c $< $(CCFLAGS) -MD
 
-.PHONY: cppcheck clean
+.PHONY: clean cppcheck run-clang-tidy
 
 cppcheck: $(SRC) $(INC)
 	$(CPPCHECK) --enable=all --inconclusive --template=gcc --language=c++ --std=c++11 $(SRC) $(INC)
+
+$(OBJ_DIR)/compile_commands.json: $(SRC) $(INC) $(srcdir)/Makefile $(srcdir)/Makefile.$(TOOLS)
+	$(BEAR) --cdb $@ $(MAKE)
+
+run-clang-tidy: $(OBJ_DIR)/compile_commands.json $(srcdir)/Makefile $(srcdir)/Makefile.$(TOOLS)
+	$(RUN-CLANG-TIDY) -p $(OBJ_DIR) -checks '*'
 
 -include $(DEPS)
 
