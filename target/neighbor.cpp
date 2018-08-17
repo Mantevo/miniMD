@@ -130,12 +130,10 @@ void Neighbor::build(Atom &atom)
 
   // Ensure that the atom positions are up to date
   // TODO: Remove this once we can
-  #pragma omp target enter data map(alloc:x[0:nall * PAD])
   #pragma omp target update to(x[0:nall * PAD])
 
   // Ensure that the atom types are copied
   // TODO: Remove this once we can
-  #pragma omp target enter data map(alloc:type[0:nall])
   #pragma omp target update to(type[0:nall])
 #endif
 
@@ -284,14 +282,6 @@ void Neighbor::build(Atom &atom)
   // TODO: Remove this once the force compute is offloaded
   #pragma omp target update from(numneigh[0:nmax], neighbors[0:nmax * maxneighs])
 
-  // Free x again
-  // TODO: Remove this once we can
-  #pragma omp target exit data map(delete:x[0:nall * PAD])
-
-  // Free type again
-  // TODO: Remove this once we can
-  #pragma omp target exit data map(delete:type[0:nall])
-
   // FIXME: Workaround for automatic copying of class members.
   this->maxneighs = maxneighs;
   this->neighbors = neighbors;
@@ -332,7 +322,6 @@ void Neighbor::binatoms(Atom &atom, int count)
 
   // Ensure that the atom positions are up to date
   // TODO: Remove this once we can
-  #pragma omp target enter data map(alloc:x[0:nall * PAD])
   #pragma omp target update to(x[0:nall * PAD])
 #endif
 
@@ -436,10 +425,6 @@ void Neighbor::binatoms(Atom &atom, int count)
   // Synchronize the bincount and bins arrays across host/device
   // TODO: Remove this once the neighbor list build and atom sort are offloaded
   #pragma omp target update from(bincount[0:mbins], bins[0:mbins * atoms_per_bin])
-
-  // Free x again
-  // TODO: Remove this once we can
-  #pragma omp target exit data map(delete:x[0:nall * PAD])
 
   // FIXME: Workaround for automatic copying of class members.
   this->atoms_per_bin = atoms_per_bin;
