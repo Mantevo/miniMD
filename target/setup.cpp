@@ -34,9 +34,9 @@
 #include "miniMD_math.h"
 #include "mpi.h"
 #include "neighbor.h"
+#include "offload.h"
 #include "thermo.h"
 #include "types.h"
-#include <cstdio>
 
 #include <cstdio>
 #include <cstring>
@@ -306,8 +306,8 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
 
   thermo.setup(atom.box.xprd * atom.box.yprd * atom.box.zprd / atom.natoms, integrate, atom, units);
 
-  MMD_float *x = atom.create_2d_MMD_float_array(atom.natoms, PAD);
-  MMD_float *v = atom.create_2d_MMD_float_array(atom.natoms, PAD);
+  MMD_float *x = ( MMD_float * )mmd_alloc(atom.natoms * PAD * sizeof(MMD_float));
+  MMD_float *v = ( MMD_float * )mmd_alloc(atom.natoms * PAD * sizeof(MMD_float));
 
   int atomflag = 0;
   int tmp;
@@ -349,6 +349,9 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
       atom.addatom(x[i * PAD + 0], x[i * PAD + 1], x[i * PAD + 2], v[i * PAD + 0], v[i * PAD + 1], v[i * PAD + 2]);
     }
   }
+
+  mmd_free(v);
+  mmd_free(x);
 
   int me;
   MPI_Comm_rank(MPI_COMM_WORLD, &me);

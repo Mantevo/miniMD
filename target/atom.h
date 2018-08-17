@@ -87,14 +87,6 @@ public:
   int unpack_exchange(int, MMD_float *);
   int skip_exchange(MMD_float *);
 
-  MMD_float *realloc_2d_MMD_float_array(MMD_float *, int, int, int);
-  MMD_float *create_2d_MMD_float_array(int, int);
-  void       destroy_2d_MMD_float_array(MMD_float *);
-
-  int *realloc_1d_int_array(int *, int, int);
-  int *create_1d_int_array(int);
-  void destroy_1d_int_array(int *);
-
   void sort(Neighbor &neighbor);
 
   int        privatize;

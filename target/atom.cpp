@@ -32,6 +32,8 @@
 #include "atom.h"
 #include "mpi.h"
 #include "neighbor.h"
+#include "offload.h"
+
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -61,14 +63,14 @@ Atom::~Atom()
 {
   if(nmax)
   {
-    destroy_2d_MMD_float_array(x);
-    destroy_2d_MMD_float_array(v);
-    destroy_2d_MMD_float_array(f);
-    destroy_2d_MMD_float_array(xold);
-    destroy_1d_int_array(type);
+    mmd_free(x);
+    mmd_free(v);
+    mmd_free(f);
+    mmd_free(xold);
+    mmd_free(type);
     if(privatize)
     {
-      destroy_2d_MMD_float_array(f_private);
+      mmd_free(f_private);
     }
   }
 }
@@ -78,11 +80,11 @@ void Atom::growarray()
   int nold = nmax;
   nmax += DELTA;
 
-  x    = ( MMD_float * )realloc_2d_MMD_float_array(x, nmax, PAD, PAD * nold);
-  v    = ( MMD_float * )realloc_2d_MMD_float_array(v, nmax, PAD, PAD * nold);
-  f    = ( MMD_float * )realloc_2d_MMD_float_array(f, nmax, PAD, PAD * nold);
-  type = realloc_1d_int_array(type, nmax, nold);
-  xold = ( MMD_float * )realloc_2d_MMD_float_array(xold, nmax, PAD, PAD * nold);
+  x    = ( MMD_float * )mmd_grow_alloc(x, nold * PAD * sizeof(MMD_float), nmax * PAD * sizeof(MMD_float));
+  v    = ( MMD_float * )mmd_grow_alloc(v, nold * PAD * sizeof(MMD_float), nmax * PAD * sizeof(MMD_float));
+  f    = ( MMD_float * )mmd_grow_alloc(f, nold * PAD * sizeof(MMD_float), nmax * PAD * sizeof(MMD_float));
+  type = ( int * )mmd_grow_alloc(type, nold * sizeof(int), nmax * sizeof(int));
+  xold = ( MMD_float * )mmd_grow_alloc(xold, nold * PAD * sizeof(MMD_float), nmax * PAD * sizeof(MMD_float));
 
   if(x == NULL || v == NULL || f == NULL || xold == NULL)
   {
@@ -91,8 +93,8 @@ void Atom::growarray()
 
   if(privatize)
   {
-    int nthreads = threads->omp_num_threads;
-    f_private    = ( MMD_float * )realloc_2d_MMD_float_array(f_private, nthreads * nmax, PAD, PAD * nold * nthreads);
+    int ncopies = (threads->teams == 1) ? threads->omp_num_threads : threads->teams;
+    f_private   = ( MMD_float * )mmd_replace_alloc(f_private, ncopies * nmax * PAD * sizeof(MMD_float));
     if(f_private == NULL)
     {
       printf("ERROR: No memory for atoms\n");
@@ -306,112 +308,6 @@ int Atom::unpack_exchange(int i, MMD_float *buf)
 
 int Atom::skip_exchange(MMD_float *buf) { return 7; }
 
-/* realloc a 2-d MMD_float array */
-
-MMD_float *Atom::realloc_2d_MMD_float_array(MMD_float *array, int n1, int n2, int nold)
-
-{
-  MMD_float *newarray;
-
-  newarray = create_2d_MMD_float_array(n1, n2);
-
-  if(nold)
-  {
-    memcpy(newarray, array, nold * sizeof(MMD_float));
-  }
-
-  destroy_2d_MMD_float_array(array);
-
-  return newarray;
-}
-
-/* create a 2-d MMD_float array */
-
-MMD_float *Atom::create_2d_MMD_float_array(int n1, int n2)
-{
-  MMD_float *array;
-
-  if(n1 * n2 == 0)
-  {
-    return NULL;
-  }
-
-#ifdef ALIGNMALLOC
-  array = ( MMD_float * )_mm_malloc((n1 * n2 + 1024 + 1) * sizeof(MMD_float), ALIGNMALLOC);
-#else
-  array = ( MMD_float * )malloc((n1 * n2 + 1024 + 1) * sizeof(MMD_float));
-#endif
-
-  return array;
-}
-
-/* free memory of a 2-d MMD_float array */
-
-void Atom::destroy_2d_MMD_float_array(MMD_float *array)
-{
-  if(array != NULL)
-  {
-#ifdef ALIGNMALLOC
-    _mm_free(array);
-#else
-    free(array);
-#endif
-  }
-}
-
-int *Atom::realloc_1d_int_array(int *array, int n1, int nold)
-
-{
-  int *newarray;
-
-  newarray = create_1d_int_array(n1);
-
-  if(nold)
-  {
-    memcpy(newarray, array, nold * sizeof(int));
-  }
-
-  destroy_1d_int_array(array);
-
-  return newarray;
-}
-
-/* create a 2-d MMD_float array */
-
-int *Atom::create_1d_int_array(int n1)
-{
-  int  ALIGN = 16;
-  int *data;
-  int  i, n;
-
-  if(n1 == 0)
-  {
-    return NULL;
-  }
-
-#ifdef ALIGNMALLOC
-  data = ( int * )_mm_malloc((n1 + 1024 + 1) * sizeof(int), ALIGNMALLOC);
-#else
-  data = ( int * )malloc((n1) * sizeof(int));
-#endif
-
-  return data;
-}
-
-/* free memory of a 2-d MMD_float array */
-
-void Atom::destroy_1d_int_array(int *array)
-{
-  if(array != NULL)
-  {
-#ifdef ALIGNMALLOC
-    _mm_free(array);
-#else
-    free(array);
-#endif
-  }
-}
-
 void Atom::sort(Neighbor &neighbor)
 {
   neighbor.binatoms(*this, nlocal);
@@ -429,12 +325,9 @@ void Atom::sort(Neighbor &neighbor)
 
   if(copy_size < nmax)
   {
-    destroy_2d_MMD_float_array(x_copy);
-    destroy_2d_MMD_float_array(v_copy);
-    destroy_1d_int_array(type_copy);
-    x_copy    = ( MMD_float * )create_2d_MMD_float_array(nmax, PAD);
-    v_copy    = ( MMD_float * )create_2d_MMD_float_array(nmax, PAD);
-    type_copy = create_1d_int_array(nmax);
+    x_copy    = ( MMD_float * )mmd_replace_alloc(x_copy, nmax * PAD * sizeof(MMD_float));
+    v_copy    = ( MMD_float * )mmd_replace_alloc(v_copy, nmax * PAD * sizeof(MMD_float));
+    type_copy = ( int * )mmd_replace_alloc(type_copy, nmax * sizeof(int));
     copy_size = nmax;
   }
 
