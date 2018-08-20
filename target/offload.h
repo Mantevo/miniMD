@@ -33,21 +33,27 @@
 
 #include <cassert>
 #include <cstring>
+#include <omp.h>
 
 static void *mmd_alloc(size_t bytes)
 {
 #ifdef ALIGNMALLOC
-  char *ptr = ( char * )_mm_malloc(bytes + ALIGNMALLOC, ALIGNMALLOC);
+  char *h_ptr = ( char * )_mm_malloc(bytes + ALIGNMALLOC, ALIGNMALLOC);
 #ifdef USE_OFFLOAD
-  #pragma omp target enter data map(alloc:ptr[0:bytes + ALIGNMALLOC])
+  char *d_ptr = ( char * )omp_target_alloc(bytes + ALIGNMALLOC, 0);
 #endif
 #else
-  char *ptr = ( char * )malloc(bytes);
+  char *h_ptr = ( char * )malloc(bytes);
 #ifdef USE_OFFLOAD
-  #pragma omp target enter data map(alloc:ptr[0:bytes])
+  char *d_ptr = ( char * )omp_target_alloc(bytes, 0);
 #endif
 #endif
-  return ( void * )ptr;
+
+#ifdef USE_OFFLOAD
+  omp_target_associate_ptr(h_ptr, d_ptr, bytes, 0, 0);
+#endif
+
+  return ( void * )h_ptr;
 }
 
 static void mmd_free(void *ptr)
@@ -55,8 +61,9 @@ static void mmd_free(void *ptr)
   if(ptr)
   {
 #ifdef USE_OFFLOAD
-    #pragma omp target exit data map(delete:ptr)
+    omp_target_disassociate_ptr(ptr, 0);
 #endif
+
 #ifdef ALIGNMALLOC
     _mm_free(ptr);
 #else
@@ -71,17 +78,31 @@ static void *mmd_replace_alloc(void *ptr, size_t bytes)
   return mmd_alloc(bytes);
 }
 
-static void *mmd_grow_alloc(void *old_ptr, size_t old_bytes, size_t new_bytes)
+static void *mmd_grow_alloc(void *ptr, size_t old_bytes, size_t new_bytes, bool sync_device = false)
 {
+  char *old_ptr = ( char * )ptr;
   char *new_ptr = ( char * )mmd_alloc(new_bytes);
   if(old_ptr)
   {
     assert(old_bytes > 0);
+#if USE_OFFLOAD
+    if(sync_device)
+    {
+      #pragma omp target update from(old_ptr[0:old_bytes])
+    }
+#endif
     std::memcpy(new_ptr, old_ptr, old_bytes);
 #ifdef USE_OFFLOAD
-    #pragma omp target update to(new_ptr[0:old_bytes])
+    if(sync_device)
+    {
+      #pragma omp target update to(new_ptr[0:new_bytes])
+    }
 #endif
     mmd_free(old_ptr);
+  }
+  else if(sync_device)
+  {
+    #pragma omp target update to(new_ptr[0:new_bytes])
   }
   return new_ptr;
 }
