@@ -694,9 +694,27 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   MMD_float *const       f      = atom.f;
   const int *const       type   = atom.type;
 
-  // clear force on own and ghost atoms
+  const int  maxneighs = neighbor.maxneighs;
+  const int *neighbors = neighbor.neighbors;
+  const int *numneigh  = neighbor.numneigh;
+#ifdef USE_OFFLOAD
+  const MMD_float *cutforcesq = this->cutforcesq;
+  const MMD_float *epsilon    = this->epsilon;
+  const MMD_float *sigma6     = this->sigma6;
+  const int        ntypes     = this->ntypes;
+  #pragma omp target enter data map(alloc:f[0:nall * PAD])
+  #pragma omp target enter data map(alloc:x[0:nall * PAD])
+  #pragma omp target enter data map(alloc:type[0:nall])
+  #pragma omp target update to(x[0:nall * PAD])
+  #pragma omp target update to(type[0:nall])  // TODO: only copy type after sorting also: when copy x?
+#endif
 
+// clear force on own and ghost atoms
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(int i = 0; i < nlocal; i++)
   {
     f[i * PAD + 0] = MMD_float(0.0);
@@ -706,59 +724,105 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
 
   // loop over all neighbors of my atoms
   // store force on atom i
-
-  #pragma omp parallel for reduction(+ : t_eng_vdwl, t_virial)
-  for(int i = 0; i < nlocal; i++)
-  {
-    const int *const neighs    = &neighbor.neighbors[i * neighbor.maxneighs];
-    const int        numneighs = neighbor.numneigh[i];
-    const MMD_float  xtmp      = x[i * PAD + 0];
-    const MMD_float  ytmp      = x[i * PAD + 1];
-    const MMD_float  ztmp      = x[i * PAD + 2];
-    const int        type_i    = type[i];
-    MMD_float        fix       = MMD_float(0.0);
-    MMD_float        fiy       = MMD_float(0.0);
-    MMD_float        fiz       = MMD_float(0.0);
-
-    // pragma omp simd forces vectorization (ignoring the performance objections of the compiler)
-    // also give hint to use certain vectorlength for MIC, Sandy Bridge and WESTMERE this should be be 8 here
-    // give hint to compiler that fix, fiy and fiz are used for reduction only
-
-#ifdef USE_SIMD
-#pragma vector unaligned
-#pragma omp simd reduction(+ : fix, fiy, fiz, t_eng_vdwl, t_virial)
+#ifdef USE_OFFLOAD
+  #pragma omp target teams map(tofrom:t_eng_vdwl,t_virial) thread_limit(MAX_TEAM_SIZE)
 #endif
-    for(int k = 0; k < numneighs; k++)
+  {
+#ifdef USE_OFFLOAD
+    const int nthr = omp_get_max_threads();
+    MMD_float w_eng_vdwl[MAX_TEAM_SIZE];
+    MMD_float w_virial[MAX_TEAM_SIZE];
+    for(int i = 0; i < nthr; i++)
     {
-      const int       j      = neighs[k];
-      const MMD_float delx   = xtmp - x[j * PAD + 0];
-      const MMD_float dely   = ytmp - x[j * PAD + 1];
-      const MMD_float delz   = ztmp - x[j * PAD + 2];
-      const int       type_j = type[j];
-      const MMD_float rsq    = delx * delx + dely * dely + delz * delz;
+      w_eng_vdwl[i] = MMD_float(0.0);
+      w_virial[i]   = MMD_float(0.0);
+    }
+    #pragma omp distribute parallel for  // reduction(+:t_eng_vdwl, t_virial)
+#else
+    #pragma omp parallel for reduction(+ : t_eng_vdwl, t_virial)
+#endif
+    for(int i = 0; i < nlocal; i++)
+    {
+      const int        tid       = omp_get_thread_num();
+      const int *const neighs    = neighbors + i * maxneighs;
+      const int        numneighs = numneigh[i];
+      const MMD_float  xtmp      = x[i * PAD + 0];
+      const MMD_float  ytmp      = x[i * PAD + 1];
+      const MMD_float  ztmp      = x[i * PAD + 2];
+      const int        type_i    = type[i];
+      MMD_float        fix       = MMD_float(0.0);
+      MMD_float        fiy       = MMD_float(0.0);
+      MMD_float        fiz       = MMD_float(0.0);
 
-      int type_ij = type_i * ntypes + type_j;
-      if(rsq < cutforcesq[type_ij])
+      // pragma omp simd forces vectorization (ignoring the performance objections of the compiler)
+      // also give hint to use certain vectorlength for MIC, Sandy Bridge and WESTMERE this should be be 8 here
+      // give hint to compiler that fix, fiy and fiz are used for reduction only
+
+// clang-format off
+#ifndef USE_OFFLOAD
+#ifdef USE_SIMD
+      #pragma vector unaligned
+      #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
+#endif
+#endif // clang-format on
+      for(int k = 0; k < numneighs; k++)
       {
-        const MMD_float sr2   = MMD_float(1.0) / rsq;
-        const MMD_float sr6   = sr2 * sr2 * sr2 * sigma6[type_ij];
-        const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
-        fix += delx * force;
-        fiy += dely * force;
-        fiz += delz * force;
+        const int       j       = neighs[k];
+        const MMD_float delx    = xtmp - x[j * PAD + 0];
+        const MMD_float dely    = ytmp - x[j * PAD + 1];
+        const MMD_float delz    = ztmp - x[j * PAD + 2];
+        const int       type_j  = type[j];
+        const MMD_float rsq     = delx * delx + dely * dely + delz * delz;
+        const int       type_ij = type_i * ntypes + type_j;
 
-        if(EVFLAG)
+        if(rsq < cutforcesq[type_ij])
         {
-          t_eng_vdwl += sr6 * (sr6 - MMD_float(1.0)) * epsilon[type_ij];
-          t_virial += (delx * delx + dely * dely + delz * delz) * force;
+          const MMD_float sr2   = MMD_float(1.0) / rsq;
+          const MMD_float sr6   = sr2 * sr2 * sr2 * sigma6[type_ij];
+          const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
+          fix += delx * force;
+          fiy += dely * force;
+          fiz += delz * force;
+
+          if(EVFLAG)
+          {
+#ifdef USE_OFFLOAD
+            w_eng_vdwl[tid] += sr6 * (sr6 - MMD_float(1.0)) * epsilon[type_ij];
+            w_virial[tid] += (delx * delx + dely * dely + delz * delz) * force;
+#else
+            t_eng_vdwl += sr6 * (sr6 - MMD_float(1.0)) * epsilon[type_ij];
+            t_virial += (delx * delx + dely * dely + delz * delz) * force;
+#endif
+          }
         }
       }
-    }
 
-    f[i * PAD + 0] += fix;
-    f[i * PAD + 1] += fiy;
-    f[i * PAD + 2] += fiz;
+      f[i * PAD + 0] += fix;
+      f[i * PAD + 1] += fiy;
+      f[i * PAD + 2] += fiz;
+    }
+#ifdef USE_OFFLOAD
+    if(EVFLAG)
+    {
+      MMD_float team_eng_vdwl = MMD_float(0.0);
+      MMD_float team_virial   = MMD_float(0.0);
+      for(int i = 0; i < nthr; ++i)
+      {
+        team_eng_vdwl += w_eng_vdwl[i];
+        team_virial += w_virial[i];
+      }
+      atomic_add(&t_eng_vdwl, team_eng_vdwl);
+      atomic_add(&t_virial, team_virial);
+    }
+#endif
   }
+
+#ifdef USE_OFFLOAD
+  #pragma omp target update from(f[0:nall*PAD])
+  #pragma omp target exit data map(delete:f[0:nall * PAD])
+  #pragma omp target exit data map(delete:x[0:nall * PAD])
+  #pragma omp target exit data map(delete:type[0:nall])
+#endif
 
   if(EVFLAG)
   {
