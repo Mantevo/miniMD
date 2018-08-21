@@ -31,6 +31,7 @@
 
 #include "comm.h"
 #include "mpi.h"
+#include "offload.h"
 #include "openmp.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -44,15 +45,15 @@
 Comm::Comm()
 {
   maxsend            = BUFMIN;
-  buf_send           = ( MMD_float * )malloc((maxsend + BUFMIN) * sizeof(MMD_float));
+  buf_send           = ( MMD_float * )mmd_alloc((maxsend + BUFMIN) * sizeof(MMD_float));
   maxrecv            = BUFMIN;
-  buf_recv           = ( MMD_float * )malloc(maxrecv * sizeof(MMD_float));
+  buf_recv           = ( MMD_float * )mmd_alloc(maxrecv * sizeof(MMD_float));
   check_safeexchange = 0;
   do_safeexchange    = 0;
   maxnlocal          = 0;
   maxexc             = maxsend;
-  exc_sendlist       = ( int * )malloc(maxexc * sizeof(int));
-  exc_copylist       = ( int * )malloc(maxexc * sizeof(int));
+  exc_sendlist       = ( int * )mmd_alloc(maxexc * sizeof(int));
+  exc_copylist       = ( int * )mmd_alloc(maxexc * sizeof(int));
 }
 
 Comm::~Comm() {}
@@ -166,22 +167,22 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
 
   int maxswap = 2 * (need[0] + need[1] + need[2]);
 
-  slablo            = ( MMD_float * )malloc(maxswap * sizeof(MMD_float));
-  slabhi            = ( MMD_float * )malloc(maxswap * sizeof(MMD_float));
-  pbc_any           = ( int * )malloc(maxswap * sizeof(int));
-  pbc_flagx         = ( int * )malloc(maxswap * sizeof(int));
-  pbc_flagy         = ( int * )malloc(maxswap * sizeof(int));
-  pbc_flagz         = ( int * )malloc(maxswap * sizeof(int));
-  sendproc          = ( int * )malloc(maxswap * sizeof(int));
-  recvproc          = ( int * )malloc(maxswap * sizeof(int));
-  sendproc_exc      = ( int * )malloc(maxswap * sizeof(int));
-  recvproc_exc      = ( int * )malloc(maxswap * sizeof(int));
-  sendnum           = ( int * )malloc(maxswap * sizeof(int));
-  recvnum           = ( int * )malloc(maxswap * sizeof(int));
-  comm_send_size    = ( int * )malloc(maxswap * sizeof(int));
-  comm_recv_size    = ( int * )malloc(maxswap * sizeof(int));
-  reverse_send_size = ( int * )malloc(maxswap * sizeof(int));
-  reverse_recv_size = ( int * )malloc(maxswap * sizeof(int));
+  slablo            = ( MMD_float * )mmd_alloc(maxswap * sizeof(MMD_float));
+  slabhi            = ( MMD_float * )mmd_alloc(maxswap * sizeof(MMD_float));
+  pbc_any           = ( int * )mmd_alloc(maxswap * sizeof(int));
+  pbc_flagx         = ( int * )mmd_alloc(maxswap * sizeof(int));
+  pbc_flagy         = ( int * )mmd_alloc(maxswap * sizeof(int));
+  pbc_flagz         = ( int * )mmd_alloc(maxswap * sizeof(int));
+  sendproc          = ( int * )mmd_alloc(maxswap * sizeof(int));
+  recvproc          = ( int * )mmd_alloc(maxswap * sizeof(int));
+  sendproc_exc      = ( int * )mmd_alloc(maxswap * sizeof(int));
+  recvproc_exc      = ( int * )mmd_alloc(maxswap * sizeof(int));
+  sendnum           = ( int * )mmd_alloc(maxswap * sizeof(int));
+  recvnum           = ( int * )mmd_alloc(maxswap * sizeof(int));
+  comm_send_size    = ( int * )mmd_alloc(maxswap * sizeof(int));
+  comm_recv_size    = ( int * )mmd_alloc(maxswap * sizeof(int));
+  reverse_send_size = ( int * )mmd_alloc(maxswap * sizeof(int));
+  reverse_recv_size = ( int * )mmd_alloc(maxswap * sizeof(int));
   int iswap         = 0;
 
   for(int idim = 0; idim < 3; idim++)
@@ -195,19 +196,19 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
 
   MPI_Comm_free(&cartesian);
 
-  firstrecv   = ( int * )malloc(maxswap * sizeof(int));
-  maxsendlist = ( int * )malloc(maxswap * sizeof(int));
+  firstrecv   = ( int * )mmd_alloc(maxswap * sizeof(int));
+  maxsendlist = ( int * )mmd_alloc(maxswap * sizeof(int));
 
   for(i = 0; i < maxswap; i++)
   {
     maxsendlist[i] = BUFMIN;
   }
 
-  sendlist = ( int ** )malloc(maxswap * sizeof(int *));
+  sendlist = ( int ** )mmd_alloc(maxswap * sizeof(int *));
 
   for(i = 0; i < maxswap; i++)
   {
-    sendlist[i] = ( int * )malloc(BUFMIN * sizeof(int));
+    sendlist[i] = ( int * )mmd_alloc(BUFMIN * sizeof(int));
   }
 
   /* setup 4 parameters for each exchange: (spart,rpart,slablo,slabhi)
@@ -512,9 +513,10 @@ void Comm::exchange(Atom &atom)
     // ensure there's enough space for the lists
     if(nsend > maxexc)
     {
+      int oldmax   = maxexc;
       maxexc       = nsend + 100;
-      exc_sendlist = ( int * )realloc(exc_sendlist, maxexc * sizeof(int));
-      exc_copylist = ( int * )realloc(exc_copylist, maxexc * sizeof(int));
+      exc_sendlist = ( int * )mmd_grow_alloc(exc_sendlist, oldmax * sizeof(int), maxexc * sizeof(int));
+      exc_copylist = ( int * )mmd_grow_alloc(exc_copylist, oldmax * sizeof(int), maxexc * sizeof(int));
     }
     if(nsend * 7 > maxsend)
     {
@@ -867,8 +869,9 @@ void Comm::borders(Atom &atom)
       // ensure there's enough space for the list
       if(nsend > maxexc)
       {
+        int oldmax   = maxexc;
         maxexc       = nsend + 100;
-        exc_sendlist = ( int * )realloc(exc_sendlist, maxexc * sizeof(int));
+        exc_sendlist = ( int * )mmd_grow_alloc(exc_sendlist, oldmax * sizeof(int), maxexc * sizeof(int));
       }
       if(nsend > maxsendlist[iswap])
       {
@@ -989,26 +992,27 @@ void Comm::borders(Atom &atom)
 }
 
 /* realloc the size of the send buffer as needed with BUFFACTOR & BUFEXTRA */
-
+// TODO: Decide whether this can be replace_alloc instead of grow_alloc
 void Comm::growsend(int n)
 {
-  maxsend  = static_cast<int>(BUFFACTOR * n);
-  buf_send = ( MMD_float * )realloc(buf_send, (maxsend + BUFEXTRA) * sizeof(MMD_float));
+  int oldmax = maxsend;
+  maxsend    = static_cast<int>(BUFFACTOR * n);
+  buf_send   = ( MMD_float * )mmd_grow_alloc(buf_send, oldmax * sizeof(MMD_float), (maxsend + BUFEXTRA) * sizeof(MMD_float));
 }
 
 /* free/malloc the size of the recv buffer as needed with BUFFACTOR */
 
 void Comm::growrecv(int n)
 {
-  maxrecv = static_cast<int>(BUFFACTOR * n);
-  free(buf_recv);
-  buf_recv = ( MMD_float * )malloc(maxrecv * sizeof(MMD_float));
+  maxrecv  = static_cast<int>(BUFFACTOR * n);
+  buf_recv = ( MMD_float * )mmd_replace_alloc(buf_recv, maxrecv * sizeof(MMD_float));
 }
 
 /* realloc the size of the iswap sendlist as needed with BUFFACTOR */
-
+// TODO: Decide whether this can be replace_alloc instead of grow_alloc
 void Comm::growlist(int iswap, int n)
 {
+  int oldmax         = maxsendlist[iswap];
   maxsendlist[iswap] = static_cast<int>(BUFFACTOR * n);
-  sendlist[iswap]    = ( int * )realloc(sendlist[iswap], maxsendlist[iswap] * sizeof(int));
+  sendlist[iswap]    = ( int * )mmd_grow_alloc(sendlist[iswap], oldmax * sizeof(int), maxsendlist[iswap] * sizeof(int));
 }
