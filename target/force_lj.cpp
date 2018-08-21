@@ -708,9 +708,12 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
     f[i * PAD + 2] += fiz;
   }
 
-  t_eng_vdwl *= MMD_float(4.0);
-  t_virial *= MMD_float(0.5);
+  if(EVFLAG)
+  {
+    t_eng_vdwl *= MMD_float(4.0);
+    t_virial *= MMD_float(0.5);
 
-  eng_vdwl += t_eng_vdwl;
-  virial += t_virial;
+    eng_vdwl += t_eng_vdwl;
+    virial += t_virial;
+  }
 }
