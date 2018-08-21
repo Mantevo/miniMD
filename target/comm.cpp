@@ -522,6 +522,7 @@ void Comm::exchange(Atom &atom)
     }
 
     // build the sendlist
+    nsend = 0;
     #pragma omp parallel for
     for(int i = 0; i < nlocal; ++i)
     {
