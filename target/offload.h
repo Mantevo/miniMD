@@ -35,6 +35,10 @@
 #include <cstring>
 #include <omp.h>
 
+#ifdef USE_OFFLOAD
+#define MAX_TEAM_SIZE 128
+#endif
+
 static void *mmd_alloc(size_t bytes)
 {
 #ifdef ALIGNMALLOC
