@@ -709,19 +709,6 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   #pragma omp target update to(type[0:nall])  // TODO: only copy type after sorting also: when copy x?
 #endif
 
-// clear force on own and ghost atoms
-#ifdef USE_OFFLOAD
-  #pragma omp target teams distribute parallel for
-#else
-  #pragma omp parallel for
-#endif
-  for(int i = 0; i < nlocal; i++)
-  {
-    f[i * PAD + 0] = MMD_float(0.0);
-    f[i * PAD + 1] = MMD_float(0.0);
-    f[i * PAD + 2] = MMD_float(0.0);
-  }
-
   // loop over all neighbors of my atoms
   // store force on atom i
 #ifdef USE_OFFLOAD
@@ -797,9 +784,9 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
         }
       }
 
-      f[i * PAD + 0] += fix;
-      f[i * PAD + 1] += fiy;
-      f[i * PAD + 2] += fiz;
+      f[i * PAD + 0] = fix;
+      f[i * PAD + 1] = fiy;
+      f[i * PAD + 2] = fiz;
     }
 #ifdef USE_OFFLOAD
     if(EVFLAG)
