@@ -570,26 +570,52 @@ __declspec(vector_variant(implements(private_force_update(MMD_float* f, const in
 template <int EVFLAG, int GHOST_NEWTON>
 void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, int me)
 {
-#ifdef USE_OFFLOAD
-  die("ERROR: Cannot offload with --privatize 1.\n");
-#endif
-
   MMD_float t_eng_vdwl = 0;
   MMD_float t_virial   = 0;
 
-  const int nthreads = threads->omp_num_threads;
+#ifdef USE_OFFLOAD
+  const int ncopies = threads->teams;
+#else
+  const int ncopies = threads->omp_num_threads;
+#endif
 
-  const int              nlocal = atom.nlocal;
-  const int              nall   = atom.nlocal + atom.nghost;
-  const MMD_float *const x      = atom.x;
-  const int *const       type   = atom.type;
+  const int              nlocal    = atom.nlocal;
+  const int              nall      = atom.nlocal + atom.nghost;
+  const MMD_float *const x         = atom.x;
+  MMD_float *const       f_private = atom.f_private;
+  const int *const       type      = atom.type;
 
+  const int  maxneighs = neighbor.maxneighs;
+  const int *neighbors = neighbor.neighbors;
+  const int *numneigh  = neighbor.numneigh;
+#ifdef USE_OFFLOAD
+  const MMD_float *cutforcesq = this->cutforcesq;
+  const MMD_float *epsilon    = this->epsilon;
+  const MMD_float *sigma6     = this->sigma6;
+  const int        ntypes     = this->ntypes;
+#endif
+
+  // TODO: This shouldn't strictly be necessary
+  #pragma omp target teams distribute parallel for
+  for (int i = 0; i < ncopies * nall * PAD; ++i)
+  {
+    f_private[i] = 0.0f;
+  }
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute map(tofrom:t_eng_vdwl,t_virial) num_teams(threads->teams) thread_limit(MAX_TEAM_SIZE)
+#else
   #pragma omp parallel for reduction(+ : t_eng_vdwl, t_virial)
+#endif
   for(int i = 0; i < nlocal; i++)
   {
-    MMD_float *const f         = &atom.f_private[omp_get_thread_num() * nall * PAD]; // TODO: Hoist this
-    const int *const neighs    = &neighbor.neighbors[i * neighbor.maxneighs];
-    const int        numneighs = neighbor.numneigh[i];
+#ifdef USE_OFFLOAD
+    MMD_float *const f         = &f_private[omp_get_team_num() * nall * PAD]; // TODO: Hoist this
+#else
+    MMD_float *const f         = &f_private[omp_get_thread_num() * nall * PAD]; // TODO: Hoist this
+#endif
+    const int *const neighs    = &neighbors[i * maxneighs];
+    const int        numneighs = numneigh[i];
     const MMD_float  xtmp      = x[i * PAD + 0];
     const MMD_float  ytmp      = x[i * PAD + 1];
     const MMD_float  ztmp      = x[i * PAD + 2];
@@ -598,9 +624,16 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
     MMD_float        fiy       = MMD_float(0.0);
     MMD_float        fiz       = MMD_float(0.0);
 
+    MMD_float w_virial   = MMD_float(0.0);
+    MMD_float w_eng_vdwl = MMD_float(0.0);
+
+#ifdef USE_OFFLOAD
+    #pragma omp parallel for num_threads(MAX_TEAM_SIZE) reduction(+:fix, fiy, fiz, w_eng_vdwl, w_virial)
+#else
 #ifdef USE_SIMD
-#pragma vector unaligned
-#pragma omp simd reduction(+ : fix, fiy, fiz, t_eng_vdwl, t_virial)
+    #pragma vector unaligned
+    #pragma omp simd reduction(+ : fix, fiy, fiz, w_eng_vdwl, w_virial)
+#endif
 #endif
     for(int k = 0; k < numneighs; k++)
     {
@@ -625,9 +658,15 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
 #ifndef USE_SCATTER_VARIANT
         if(GHOST_NEWTON || j < nlocal)
         {
+#ifdef USE_OFFLOAD
+          atomic_add(&f[j * PAD + 0], -delx * force);
+          atomic_add(&f[j * PAD + 1], -dely * force);
+          atomic_add(&f[j * PAD + 2], -delz * force);
+#else
           f[j * PAD + 0] -= delx * force;
           f[j * PAD + 1] -= dely * force;
           f[j * PAD + 2] -= delz * force;
+#endif
         }
 #else
         if(GHOST_NEWTON || j < nlocal)
@@ -639,22 +678,55 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
         if(EVFLAG)
         {
           const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
-          t_eng_vdwl += scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
-          t_virial += scale * (delx * delx + dely * dely + delz * delz) * force;
+          const MMD_float l_eng_vdwl = scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
+          w_eng_vdwl += l_eng_vdwl;
+          const MMD_float l_virial = scale * (delx * delx + dely * dely + delz * delz) * force;
+          w_virial += l_virial;
         }
       }
     }
 
+    if(EVFLAG)
+    {
+#ifdef USE_OFFLOAD
+      atomic_add(&t_eng_vdwl, w_eng_vdwl);
+      atomic_add(&t_virial, w_virial);
+#else
+      t_eng_vdwl += w_eng_vdwl;
+      t_virial   += w_virial;
+#endif
+    }
+
+#ifdef uSE_OFFLOAD
+    atomic_add(&f[i * PAD + 0], fix);
+    atomic_add(&f[i * PAD + 1], fiy);
+    atomic_add(&f[i * PAD + 2], fiz);
+#else
     f[i * PAD + 0] += fix;
     f[i * PAD + 1] += fiy;
     f[i * PAD + 2] += fiz;
+#endif
   }
 
   // reduce private copies and clear them for the next timestep
   // likely sub-optimal: makes no assumptions about which threads touch which atoms
-  // iterates through array(s) in cache-line-sized chunks
+  // iterates through array(s) in cache-line-sized chunks on host, naively on device
 
   MMD_float *reduction_out = ( MMD_float * )atom.f;
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+  for(int i = 0; i < nall * PAD; ++i)
+  {
+    MMD_float *reduction_in = ( MMD_float *)&f_private[i];
+    MMD_float tmp           = MMD_float(0.0);
+    for(int t = 0; t < ncopies; ++t)
+    {
+      tmp += reduction_in[t * nall * PAD];
+      reduction_in[t * nall * PAD] = MMD_float(0.0);
+    }
+    reduction_out[i] = tmp;
+  }
+#else
   #pragma omp parallel for
   for(int chunk_offset = 0; chunk_offset < nall * PAD; chunk_offset += CACHELINE_SIZE / sizeof(MMD_float))
   {
@@ -663,10 +735,10 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
     #pragma omp simd
     for(int c = 0; c < CACHELINE_SIZE / sizeof(MMD_float); ++c)
     {
-      MMD_float *reduction_in = ( MMD_float * )&atom.f_private[chunk_offset + c];
+      MMD_float *reduction_in = ( MMD_float * )&f_private[chunk_offset + c];
       MMD_float  tmp          = MMD_float(0.0);
       #pragma unroll(2)
-      for(int t = 0; t < nthreads; ++t)
+      for(int t = 0; t < ncopies; ++t)
       {
         tmp += reduction_in[t * nall * PAD];
         reduction_in[t * nall * PAD] = MMD_float(0.0);
@@ -674,6 +746,7 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
       reduction_out[chunk_offset + c] = tmp;
     }
   }
+#endif
 
   eng_vdwl += t_eng_vdwl;
   virial += t_virial;

@@ -96,7 +96,11 @@ void Atom::growarray_sync()
     #pragma omp target update from(xold[0:N])
     if(privatize)
     {
-      int        ncopies   = (threads->teams == 1) ? threads->omp_num_threads : threads->teams;
+#ifdef USE_OFFLOAD
+      int        ncopies   = threads->teams;
+#else
+      int        ncopies   = threads->omp_num_threads;
+#endif
       MMD_float *f_private = this->f_private;
       #pragma omp target update from(f_private[0:ncopies * N])
     }
@@ -121,7 +125,11 @@ void Atom::growarray_sync()
     #pragma omp target update to(xold[0:N])
     if(privatize)
     {
-      int        ncopies   = (threads->teams == 1) ? threads->omp_num_threads : threads->teams;
+#ifdef USE_OFFLOAD
+      int        ncopies   = threads->teams;
+#else
+      int        ncopies   = threads->omp_num_threads;
+#endif
       MMD_float *f_private = this->f_private;
       #pragma omp target update to(f_private[0:ncopies * N])
     }
@@ -147,7 +155,11 @@ void Atom::growarray()
 
   if(privatize)
   {
-    int ncopies = (threads->teams == 1) ? threads->omp_num_threads : threads->teams;
+#ifdef USE_OFFLOAD
+    int ncopies = threads->teams;
+#else
+    int ncopies = threads->omp_num_threads;
+#endif
     f_private   = ( MMD_float * )mmd_replace_alloc(f_private, ncopies * nmax * PAD * sizeof(MMD_float));
     if(f_private == NULL)
     {

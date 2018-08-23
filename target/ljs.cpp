@@ -342,6 +342,7 @@ int main(int argc, char **argv)
   threads.mpi_num_threads = nprocs;
   threads.omp_me          = 0;
   threads.omp_num_threads = num_threads;
+  threads.teams           = teams;
 
   atom.threads      = &threads;
   comm.threads      = &threads;
