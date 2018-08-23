@@ -374,7 +374,6 @@ void Comm::communicate(Atom &atom)
 #ifdef USE_OFFLOAD
       #pragma omp target update from(buf_send[0:comm_send_size[iswap]])
 #endif
-
       if(sizeof(MMD_float) == 4)
       {
         MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_FLOAT, recvproc[iswap], 0, MPI_COMM_WORLD, &request);
@@ -385,13 +384,10 @@ void Comm::communicate(Atom &atom)
         MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_DOUBLE, recvproc[iswap], 0, MPI_COMM_WORLD, &request);
         MPI_Send(buf_send, comm_send_size[iswap], MPI_DOUBLE, sendproc[iswap], 0, MPI_COMM_WORLD);
       }
-
       MPI_Wait(&request, &status);
-
 #ifdef USE_OFFLOAD
       #pragma omp target update to(buf_recv[0:comm_recv_size[iswap]])
 #endif
-
       buf = buf_recv;
     }
     else
@@ -414,23 +410,28 @@ void Comm::communicate(Atom &atom)
 
 void Comm::reverse_communicate(Atom &atom)
 {
-  int         iswap;
+#ifdef USE_OFFLOAD
+  // Ensure that the atom forces are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update to(atom.f[0:(atom.nlocal + atom.nghost) * PAD])
+#endif
+
   MMD_float * buf;
   MPI_Request request;
   MPI_Status  status;
 
-  for(iswap = nswap - 1; iswap >= 0; iswap--)
+  for(int iswap = nswap - 1; iswap >= 0; iswap--)
   {
-
     /* pack buffer */
-
     atom.pack_reverse(recvnum[iswap], firstrecv[iswap], buf_send);
 
     /* exchange with another proc
        if self, set recv buffer to send buffer */
-
     if(sendproc[iswap] != me)
     {
+#ifdef USE_OFFLOAD
+      #pragma omp target update from(buf_send[0:comm_send_size[iswap]])
+#endif
       if(sizeof(MMD_float) == 4)
       {
         MPI_Irecv(buf_recv, reverse_recv_size[iswap], MPI_FLOAT, sendproc[iswap], 0, MPI_COMM_WORLD, &request);
@@ -442,7 +443,9 @@ void Comm::reverse_communicate(Atom &atom)
         MPI_Send(buf_send, reverse_send_size[iswap], MPI_DOUBLE, recvproc[iswap], 0, MPI_COMM_WORLD);
       }
       MPI_Wait(&request, &status);
-
+#ifdef USE_OFFLOAD
+      #pragma omp target update to(buf_recv[0:comm_recv_size[iswap]])
+#endif
       buf = buf_recv;
     }
     else
@@ -451,9 +454,20 @@ void Comm::reverse_communicate(Atom &atom)
     }
 
     /* unpack buffer */
-
+#ifdef USE_OFFLOAD
+    // Transfer the list
+    // TODO: Remove this once we can
+    int *tmp_sendlist = sendlist[iswap];
+    #pragma omp target update to(tmp_sendlist[0:sendnum[iswap]])
+#endif
     atom.unpack_reverse(sendnum[iswap], sendlist[iswap], buf);
   }
+
+#ifdef USE_OFFLOAD
+  // Synchronize the f array across host/device
+  // TODO: Remove this once Comm is offloaded
+  #pragma omp target update from(atom.f[0:(atom.nlocal + atom.nghost) * PAD])
+#endif
 }
 
 /* exchange:

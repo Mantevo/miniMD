@@ -257,7 +257,16 @@ void Atom::unpack_comm(int n, int first, MMD_float *buf)
 
 void Atom::pack_reverse(int n, int first, MMD_float *buf)
 {
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  MMD_float *f = this->f;
+#endif
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(int i = 0; i < n; i++)
   {
     buf[3 * i]     = f[(first + i) * PAD + 0];
@@ -268,7 +277,16 @@ void Atom::pack_reverse(int n, int first, MMD_float *buf)
 
 void Atom::unpack_reverse(int n, int *list, MMD_float *buf)
 {
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  MMD_float *f = this->f;
+#endif
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(int i = 0; i < n; i++)
   {
     const int j = list[i];
