@@ -33,8 +33,11 @@
 #include "force.h"
 #include "integrate.h"
 #include "mpi.h"
+#include "offload.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "util.h"
+#include <omp.h>
 
 Thermo::Thermo() {}
 Thermo::~Thermo() {}
@@ -165,16 +168,53 @@ MMD_float Thermo::temperature(Atom &atom)
 {
   t_act = 0;
 
-  MMD_float *v = atom.v;
+  const int       nlocal = atom.nlocal;
+  const MMD_float mass   = atom.mass;
+  MMD_float *     v      = atom.v;
+
+#ifdef USE_OFFLOAD
+  // Ensure that the atom velocities are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update to(v[0:nlocal * PAD])
+#endif
 
   MMD_float t = 0.0;
-  #pragma omp parallel for reduction(+:t)
-  for(MMD_int i = 0; i < atom.nlocal; i++)
+#ifdef USE_OFFLOAD
+  #pragma omp target teams map(tofrom:t) thread_limit(MAX_TEAM_SIZE)
+#endif
   {
-    const MMD_float vx = v[i * PAD + 0];
-    const MMD_float vy = v[i * PAD + 1];
-    const MMD_float vz = v[i * PAD + 2];
-    t += (vx * vx + vy * vy + vz * vz) * atom.mass;
+#ifdef USE_OFFLOAD
+    const int nthr = omp_get_max_threads();
+    MMD_float w_t[MAX_TEAM_SIZE];
+    for(int i = 0; i < nthr; i++)
+    {
+      w_t[i] = MMD_float(0.0);
+    }
+    #pragma omp distribute parallel for
+#else
+    #pragma omp parallel for reduction(+:t)
+#endif
+    for(MMD_int i = 0; i < nlocal; i++)
+    {
+      const int       tid = omp_get_thread_num();
+      const MMD_float vx  = v[i * PAD + 0];
+      const MMD_float vy  = v[i * PAD + 1];
+      const MMD_float vz  = v[i * PAD + 2];
+      const MMD_float l_t = (vx * vx + vy * vy + vz * vz) * mass;
+#ifdef USE_OFFLOAD
+      w_t[tid] += l_t;
+#else
+      t += l_t;
+#endif
+    }
+#ifdef USE_OFFLOAD
+    MMD_float team_t = MMD_float(0.0);
+    for(int i = 0; i < nthr; i++)
+    {
+      team_t += w_t[i];
+    }
+    atomic_add(&t, team_t);
+#endif
   }
   t_act += t;
 
