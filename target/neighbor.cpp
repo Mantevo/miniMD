@@ -286,11 +286,11 @@ void Neighbor::build(Atom &atom)
 
   // Free x again
   // TODO: Remove this once we can
-  #pragma omp target exit data map(delete:x)
+  #pragma omp target exit data map(delete:x[0:nall * PAD])
 
   // Free type again
   // TODO: Remove this once we can
-  #pragma omp target exit data map(delete:type)
+  #pragma omp target exit data map(delete:type[0:nall])
 
   // FIXME: Workaround for automatic copying of class members.
   this->maxneighs = maxneighs;
@@ -439,7 +439,7 @@ void Neighbor::binatoms(Atom &atom, int count)
 
   // Free x again
   // TODO: Remove this once we can
-  #pragma omp target exit data map(delete:x)
+  #pragma omp target exit data map(delete:x[0:nall * PAD])
 
   // FIXME: Workaround for automatic copying of class members.
   this->atoms_per_bin = atoms_per_bin;
