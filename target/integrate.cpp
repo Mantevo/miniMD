@@ -42,7 +42,25 @@ void Integrate::setup() { dtforce = 0.5 * dt; }
 
 void Integrate::initialIntegrate()
 {
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  MMD_float *     x       = this->x;
+  MMD_float *     f       = this->f;
+  MMD_float *     v       = this->v;
+  const MMD_float dtforce = this->dtforce;
+
+  // Ensure that the atom positions, forces and velocities are up to date.
+  // TODO: Remove this once we can
+  #pragma omp target update to(x[0:nlocal * PAD])
+  #pragma omp target update to(f[0:nlocal * PAD])
+  #pragma omp target update to(v[0:nlocal * PAD])
+#endif
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(MMD_int i = 0; i < nlocal; i++)
   {
     v[i * PAD + 0] += dtforce * f[i * PAD + 0];
@@ -52,17 +70,46 @@ void Integrate::initialIntegrate()
     x[i * PAD + 1] += dt * v[i * PAD + 1];
     x[i * PAD + 2] += dt * v[i * PAD + 2];
   }
+
+#ifdef USE_OFFLOAD
+  // Synchronize the atom positions, forces and velocities across devices.
+  // TODO: Remove this once we can
+  #pragma omp target update from(x[0:nlocal * PAD])
+  #pragma omp target update from(v[0:nlocal * PAD])
+#endif
 }
 
 void Integrate::finalIntegrate()
 {
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  MMD_float *     f       = this->f;
+  MMD_float *     v       = this->v;
+  const MMD_float dtforce = this->dtforce;
+
+  // Ensure that the atom forces and velocities are up to date.
+  // TODO: Remove this once we can
+  #pragma omp target update to(f[0:nlocal * PAD])
+  #pragma omp target update to(v[0:nlocal * PAD])
+#endif
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(MMD_int i = 0; i < nlocal; i++)
   {
     v[i * PAD + 0] += dtforce * f[i * PAD + 0];
     v[i * PAD + 1] += dtforce * f[i * PAD + 1];
     v[i * PAD + 2] += dtforce * f[i * PAD + 2];
   }
+
+#ifdef USE_OFFLOAD
+  // Synchronize the atom velocities across devices.
+  // TODO: Remove this once we can
+  #pragma omp target update from(v[0:nlocal * PAD])
+#endif
 }
 
 void Integrate::run(Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Thermo &thermo, Timer &timer)
