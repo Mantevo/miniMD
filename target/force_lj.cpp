@@ -31,6 +31,7 @@
 
 #include "force.h"
 #include "miniMD_math.h"
+#include "offload.h"
 #include "openmp.h"
 #include "stdio.h"
 #include "util.h"
@@ -48,10 +49,10 @@ Force::Force(int ntypes_)
   style   = FORCELJ;
   ntypes  = ntypes_;
 
-  cutforcesq = new MMD_float[ntypes * ntypes];
-  epsilon    = new MMD_float[ntypes * ntypes];
-  sigma6     = new MMD_float[ntypes * ntypes];
-  sigma      = new MMD_float[ntypes * ntypes];
+  cutforcesq = ( MMD_float * )mmd_alloc(sizeof(MMD_float) * ntypes * ntypes);
+  epsilon    = ( MMD_float * )mmd_alloc(sizeof(MMD_float) * ntypes * ntypes);
+  sigma6     = ( MMD_float * )mmd_alloc(sizeof(MMD_float) * ntypes * ntypes);
+  sigma      = ( MMD_float * )mmd_alloc(sizeof(MMD_float) * ntypes * ntypes);
 
   for(int i = 0; i < ntypes * ntypes; i++)
   {
@@ -62,7 +63,13 @@ Force::Force(int ntypes_)
   }
 }
 
-Force::~Force() {}
+Force::~Force()
+{
+  mmd_free(cutforcesq);
+  mmd_free(epsilon);
+  mmd_free(sigma6);
+  mmd_free(sigma);
+}
 
 void Force::setup()
 {
@@ -70,6 +77,12 @@ void Force::setup()
   {
     cutforcesq[i] = cutforce * cutforce;
   }
+#ifdef USE_OFFLOAD
+  #pragma omp target update to(cutforcesq[0:ntypes * ntypes])
+  #pragma omp target update to(epsilon[0:ntypes * ntypes])
+  #pragma omp target update to(sigma6[0:ntypes * ntypes])
+  #pragma omp target update to(sigma[0:ntypes * ntypes])
+#endif
 }
 
 void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
