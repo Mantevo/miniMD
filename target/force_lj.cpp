@@ -307,7 +307,7 @@ void Force::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
 
 #ifdef USE_SIMD
 #pragma vector unaligned
-#pragma omp simd reduction (+: fix,fiy,fiz)
+#pragma omp simd reduction(+ : fix, fiy, fiz)
 #endif
     for(int k = 0; k < numneighs; k++)
     {
@@ -372,9 +372,27 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   MMD_float *const       f      = atom.f;
   const int *const       type   = atom.type;
 
-  // clear force on own and ghost atoms
+  const int  maxneighs = neighbor.maxneighs;
+  const int *neighbors = neighbor.neighbors;
+  const int *numneigh  = neighbor.numneigh;
+#ifdef USE_OFFLOAD
+  const MMD_float *cutforcesq = this->cutforcesq;
+  const MMD_float *epsilon    = this->epsilon;
+  const MMD_float *sigma6     = this->sigma6;
+  const int        ntypes     = this->ntypes;
+  #pragma omp target enter data map(alloc:x[0:nall * PAD])
+  #pragma omp target enter data map(alloc:type[0:nall])
+  #pragma omp target enter data map(alloc:f[0:nall * PAD])
+  #pragma omp target update to(x[:nall * PAD])
+  #pragma omp target update to(type[:nall])  // TODO: only copy type after sorting also: when copy x?
+#endif
 
+// clear force on own and ghost atoms
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(int i = 0; i < nall; i++)
   {
     f[i * PAD + 0] = MMD_float(0.0);
@@ -384,12 +402,15 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 
   // loop over all neighbors of my atoms
   // store force on both atoms i and j
-
-  #pragma omp parallel for reduction(+:t_eng_vdwl, t_virial)
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute map(tofrom:t_eng_vdwl,t_virial)
+#else
+  #pragma omp parallel for reduction(+ : t_eng_vdwl, t_virial)
+#endif
   for(int i = 0; i < nlocal; i++)
   {
-    const int *const neighs    = &neighbor.neighbors[i * neighbor.maxneighs];
-    const int        numneighs = neighbor.numneigh[i];
+    const int *const neighs    = neighbors + i * maxneighs;
+    const int        numneighs = numneigh[i];
     const MMD_float  xtmp      = x[i * PAD + 0];
     const MMD_float  ytmp      = x[i * PAD + 1];
     const MMD_float  ztmp      = x[i * PAD + 2];
@@ -398,14 +419,19 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     MMD_float        fiy       = MMD_float(0.0);
     MMD_float        fiz       = MMD_float(0.0);
 
-    // clang-format off
+    MMD_float w_virial   = MMD_float(0.0);
+    MMD_float w_eng_vdwl = MMD_float(0.0);
+
+// clang-format off
 #ifdef USE_SIMD
 #ifndef __clang__ /* clang errors on atomic inside simd */
     #pragma vector unaligned
     #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
 #endif
 #endif
-    // clang-format off
+#ifdef USE_OFFLOAD
+     #pragma omp parallel for
+#endif // clang-format on
     for(int k = 0; k < numneighs; k++)
     {
       const int       j       = neighs[k];
@@ -422,32 +448,45 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
         const MMD_float sr6   = sr2 * sr2 * sr2 * sigma6[type_ij];
         const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
 
-        fix += delx * force;
-        fiy += dely * force;
-        fiz += delz * force;
+        atomic_add(&fix, delx * force);
+        atomic_add(&fiy, dely * force);
+        atomic_add(&fiz, delz * force);
 
         if(GHOST_NEWTON || j < nlocal)
         {
-          atomic_add(&f[j * PAD + 0], -delx*force);
-          atomic_add(&f[j * PAD + 1], -dely*force);
-          atomic_add(&f[j * PAD + 2], -delz*force);
+          atomic_add(&f[j * PAD + 0], -delx * force);
+          atomic_add(&f[j * PAD + 1], -dely * force);
+          atomic_add(&f[j * PAD + 2], -delz * force);
         }
 
         if(EVFLAG)
         {
-          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
+          const MMD_float scale      = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
           const MMD_float l_eng_vdwl = scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
-          atomic_add(&t_eng_vdwl, l_eng_vdwl);
+          atomic_add(&w_eng_vdwl, l_eng_vdwl);
           const MMD_float l_virial = scale * (delx * delx + dely * dely + delz * delz) * force;
-          atomic_add(&t_virial, l_virial);
+          atomic_add(&w_virial, l_virial);
         }
       }
+    }
+
+    if(EVFLAG)
+    {
+      atomic_add(&t_eng_vdwl, w_eng_vdwl);
+      atomic_add(&t_virial, w_virial);
     }
 
     atomic_add(&f[i * PAD + 0], fix);
     atomic_add(&f[i * PAD + 1], fiy);
     atomic_add(&f[i * PAD + 2], fiz);
   }
+
+#ifdef USE_OFFLOAD
+  #pragma omp target update from(f[0:nall * PAD])
+  #pragma omp target exit data map(delete:x[0:nall * PAD])
+  #pragma omp target exit data map(delete:type[0:nall])
+  #pragma omp target exit data map(delete:f[0:nall * PAD])
+#endif
 
   eng_vdwl += t_eng_vdwl;
   virial += t_virial;
@@ -541,7 +580,7 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
   const MMD_float *const x      = atom.x;
   const int *const       type   = atom.type;
 
-  #pragma omp parallel for reduction(+:t_eng_vdwl, t_virial)
+  #pragma omp parallel for reduction(+ : t_eng_vdwl, t_virial)
   for(int i = 0; i < nlocal; i++)
   {
     MMD_float *const f         = &atom.f_private[omp_get_thread_num() * nall * PAD]; // TODO: Hoist this
@@ -557,7 +596,7 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
 
 #ifdef USE_SIMD
 #pragma vector unaligned
-#pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
+#pragma omp simd reduction(+ : fix, fiy, fiz, t_eng_vdwl, t_virial)
 #endif
     for(int k = 0; k < numneighs; k++)
     {
@@ -668,7 +707,7 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   // loop over all neighbors of my atoms
   // store force on atom i
 
-  #pragma omp parallel for reduction(+:t_eng_vdwl, t_virial)
+  #pragma omp parallel for reduction(+ : t_eng_vdwl, t_virial)
   for(int i = 0; i < nlocal; i++)
   {
     const int *const neighs    = &neighbor.neighbors[i * neighbor.maxneighs];
@@ -687,7 +726,7 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
 
 #ifdef USE_SIMD
 #pragma vector unaligned
-#pragma omp simd reduction (+: fix,fiy,fiz,t_eng_vdwl,t_virial)
+#pragma omp simd reduction(+ : fix, fiy, fiz, t_eng_vdwl, t_virial)
 #endif
     for(int k = 0; k < numneighs; k++)
     {
