@@ -193,11 +193,21 @@ void Atom::copy(int i, int j)
   type[j]        = type[i];
 }
 
-void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
+void Atom::pack_comm(int n, int *list, MMD_float *buf, int pbc_flags[4])
 {
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  Box        box = this->box;
+  MMD_float *x   = this->x;
+#endif
+
   if(pbc_flags[0] == 0)
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for
+#else
     #pragma omp parallel for
+#endif
     for(int i = 0; i < n; i++)
     {
       const int j = list[i];
@@ -209,7 +219,11 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
   }
   else
   {
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for map(to:pbc_flags[0:4])
+#else
     #pragma omp parallel for
+#endif
     for(int i = 0; i < n; i++)
     {
       const int j = list[i];
@@ -223,7 +237,16 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, int *pbc_flags)
 
 void Atom::unpack_comm(int n, int first, MMD_float *buf)
 {
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  MMD_float *x = this->x;
+#endif
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(int i = 0; i < n; i++)
   {
     x[(first + i) * PAD + 0] = buf[3 * i];

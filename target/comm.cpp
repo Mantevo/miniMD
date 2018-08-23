@@ -35,6 +35,7 @@
 #include "openmp.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include <cassert>
 
 #define BUFFACTOR 1.5
 #define BUFMIN 1000
@@ -338,29 +339,42 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
 
 void Comm::communicate(Atom &atom)
 {
-  int         iswap;
   int         pbc_flags[4];
   MMD_float * buf;
   MPI_Request request;
   MPI_Status  status;
 
-  for(iswap = 0; iswap < nswap; iswap++)
+#ifdef USE_OFFLOAD
+  // Ensure that the atom positions are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update to(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
+#endif
+
+  for(int iswap = 0; iswap < nswap; iswap++)
   {
-
     /* pack buffer */
-
     pbc_flags[0] = pbc_any[iswap];
     pbc_flags[1] = pbc_flagx[iswap];
     pbc_flags[2] = pbc_flagy[iswap];
     pbc_flags[3] = pbc_flagz[iswap];
 
+#ifdef USE_OFFLOAD
+    // Transfer the list
+    // TODO: Remove this once we can
+    int *tmp_sendlist = sendlist[iswap];
+    #pragma omp target update to(tmp_sendlist[0:sendnum[iswap]])
+#endif
+
     atom.pack_comm(sendnum[iswap], sendlist[iswap], buf_send, pbc_flags);
 
     /* exchange with another proc
        if self, set recv buffer to send buffer */
-
     if(sendproc[iswap] != me)
     {
+#ifdef USE_OFFLOAD
+      #pragma omp target update from(buf_send[0:comm_send_size[iswap]])
+#endif
+
       if(sizeof(MMD_float) == 4)
       {
         MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_FLOAT, recvproc[iswap], 0, MPI_COMM_WORLD, &request);
@@ -374,6 +388,10 @@ void Comm::communicate(Atom &atom)
 
       MPI_Wait(&request, &status);
 
+#ifdef USE_OFFLOAD
+      #pragma omp target update to(buf_recv[0:comm_recv_size[iswap]])
+#endif
+
       buf = buf_recv;
     }
     else
@@ -382,9 +400,14 @@ void Comm::communicate(Atom &atom)
     }
 
     /* unpack buffer */
-
     atom.unpack_comm(recvnum[iswap], firstrecv[iswap], buf);
   }
+
+#ifdef USE_OFFLOAD
+  // Synchronize the x array across host/device
+  // TODO: Remove this once Comm is offloaded
+  #pragma omp target update from(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
+#endif
 }
 
 /* reverse communication of atom info every timestep */
