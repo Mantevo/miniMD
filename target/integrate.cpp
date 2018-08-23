@@ -149,6 +149,10 @@ void Integrate::run(Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Th
     {
       if(check_safeexchange)
       {
+#ifdef USE_OFFLOAD
+        fprintf(stderr, "ERROR: Check exchange not supported by OpenMP 5.0 version.\n");
+        exit(EXIT_FAILURE);
+#endif
         double d_max = 0;
 
         for(i = 0; i < atom.nlocal; i++)

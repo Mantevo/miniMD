@@ -482,6 +482,10 @@ void Comm::exchange(Atom &atom)
 {
   if(do_safeexchange)
   {
+#ifdef USE_OFFLOAD
+    fprintf(stderr, "ERROR: Safe exchange not supported by OpenMP 5.0 version.\n");
+    exit(EXIT_FAILURE);
+#endif
     return exchange_all(atom);
   }
 
