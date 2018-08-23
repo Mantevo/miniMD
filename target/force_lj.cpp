@@ -380,9 +380,6 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   const MMD_float *epsilon    = this->epsilon;
   const MMD_float *sigma6     = this->sigma6;
   const int        ntypes     = this->ntypes;
-  #pragma omp target enter data map(alloc:x[0:nall * PAD])
-  #pragma omp target enter data map(alloc:type[0:nall])
-  #pragma omp target enter data map(alloc:f[0:nall * PAD])
   #pragma omp target update to(x[:nall * PAD])
   #pragma omp target update to(type[:nall])  // TODO: only copy type after sorting also: when copy x?
 #endif
@@ -483,9 +480,6 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 
 #ifdef USE_OFFLOAD
   #pragma omp target update from(f[0:nall * PAD])
-  #pragma omp target exit data map(delete:x[0:nall * PAD])
-  #pragma omp target exit data map(delete:type[0:nall])
-  #pragma omp target exit data map(delete:f[0:nall * PAD])
 #endif
 
   eng_vdwl += t_eng_vdwl;
@@ -702,9 +696,6 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   const MMD_float *epsilon    = this->epsilon;
   const MMD_float *sigma6     = this->sigma6;
   const int        ntypes     = this->ntypes;
-  #pragma omp target enter data map(alloc:f[0:nall * PAD])
-  #pragma omp target enter data map(alloc:x[0:nall * PAD])
-  #pragma omp target enter data map(alloc:type[0:nall])
   #pragma omp target update to(x[0:nall * PAD])
   #pragma omp target update to(type[0:nall])  // TODO: only copy type after sorting also: when copy x?
 #endif
@@ -806,9 +797,6 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
 
 #ifdef USE_OFFLOAD
   #pragma omp target update from(f[0:nall*PAD])
-  #pragma omp target exit data map(delete:f[0:nall * PAD])
-  #pragma omp target exit data map(delete:x[0:nall * PAD])
-  #pragma omp target exit data map(delete:type[0:nall])
 #endif
 
   if(EVFLAG)
