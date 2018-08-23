@@ -126,7 +126,22 @@ void Atom::addatom(MMD_float x_in, MMD_float y_in, MMD_float z_in, MMD_float vx_
 
 void Atom::pbc()
 {
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  int        nlocal = this->nlocal;
+  Box        box    = this->box;
+  MMD_float *x      = this->x;
+
+  // Ensure that the atom positions are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update to(x[0:nlocal * PAD])
+#endif
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for
+#else
   #pragma omp parallel for
+#endif
   for(int i = 0; i < nlocal; i++)
   {
     if(x[i * PAD + 0] < 0.0)
@@ -159,6 +174,12 @@ void Atom::pbc()
       x[i * PAD + 2] -= box.zprd;
     }
   }
+
+#ifdef USE_OFFLOAD
+  // Synchronize the x array across host/device
+  // TODO: Remove this once everything is offloaded
+  #pragma omp target update from(x[0:nlocal * PAD])
+#endif
 }
 
 void Atom::copy(int i, int j)
