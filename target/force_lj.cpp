@@ -33,6 +33,7 @@
 #include "miniMD_math.h"
 #include "openmp.h"
 #include "stdio.h"
+#include "util.h"
 
 #ifndef VECTORLENGTH
 #define VECTORLENGTH 4
@@ -414,29 +415,25 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 
         if(GHOST_NEWTON || j < nlocal)
         {
-          #pragma omp atomic
-          f[j * PAD + 0] -= delx * force;
-          #pragma omp atomic
-          f[j * PAD + 1] -= dely * force;
-          #pragma omp atomic
-          f[j * PAD + 2] -= delz * force;
+          atomic_add(&f[j * PAD + 0], -delx*force);
+          atomic_add(&f[j * PAD + 1], -dely*force);
+          atomic_add(&f[j * PAD + 2], -delz*force);
         }
 
         if(EVFLAG)
         {
           const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
-          t_eng_vdwl += scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
-          t_virial += scale * (delx * delx + dely * dely + delz * delz) * force;
+          const MMD_float l_eng_vdwl = scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
+          atomic_add(&t_eng_vdwl, l_eng_vdwl);
+          const MMD_float l_virial = scale * (delx * delx + dely * dely + delz * delz) * force;
+          atomic_add(&t_virial, l_virial);
         }
       }
     }
 
-    #pragma omp atomic
-    f[i * PAD + 0] += fix;
-    #pragma omp atomic
-    f[i * PAD + 1] += fiy;
-    #pragma omp atomic
-    f[i * PAD + 2] += fiz;
+    atomic_add(&f[i * PAD + 0], fix);
+    atomic_add(&f[i * PAD + 1], fiy);
+    atomic_add(&f[i * PAD + 2], fiz);
   }
 
   eng_vdwl += t_eng_vdwl;

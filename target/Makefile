@@ -20,7 +20,7 @@ all: $(TARGETS)
 SRC=ljs.cpp input.cpp integrate.cpp atom.cpp force_lj.cpp neighbor.cpp \
 	thermo.cpp comm.cpp timer.cpp output.cpp setup.cpp
 INC=ljs.h atom.h force.h neighbor.h thermo.h timer.h comm.h integrate.h threadData.h variant.h openmp.h \
-	types.h miniMD_math.h
+	types.h miniMD_math.h util.h
 
 OBJ_base = $(SRC:.cpp=.o)
 OBJ= $(addprefix $(OBJ_DIR)/,$(OBJ_base))
