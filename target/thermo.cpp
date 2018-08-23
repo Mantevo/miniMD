@@ -190,7 +190,7 @@ MMD_float Thermo::temperature(Atom &atom)
     {
       w_t[i] = MMD_float(0.0);
     }
-    #pragma omp distribute parallel for
+    #pragma omp distribute parallel for num_threads(nthr) // FIXME: this is because for x86, it appears that extra threads can run in here.
 #else
     #pragma omp parallel for reduction(+:t)
 #endif
