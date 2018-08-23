@@ -72,7 +72,6 @@ public:
 
   MMD_float *buf_send; // send buffer for all comm
   MMD_float *buf_recv; // recv buffer for all comm
-  MMD_float *buf;
   int        maxsend;
   int        maxrecv;
 
