@@ -55,6 +55,7 @@ Comm::Comm()
   maxexc             = maxsend;
   exc_sendlist       = ( int * )mmd_alloc(maxexc * sizeof(int));
   exc_copylist       = ( int * )mmd_alloc(maxexc * sizeof(int));
+  send_flag          = NULL;
 }
 
 Comm::~Comm() {}
@@ -484,9 +485,12 @@ void Comm::exchange(Atom &atom)
     return exchange_all(atom);
   }
 
-  int        m, n, nsend, nrecv, nrecv1, nrecv2, nlocal;
-  MMD_float  lo, hi;
-  MMD_float *x;
+  int       m, n, nsend, nrecv, nrecv1, nrecv2, nlocal;
+  MMD_float lo, hi;
+
+  MMD_float *x    = atom.x;
+  MMD_float *v    = atom.f;
+  int *      type = atom.type;
 
   MPI_Request request;
   MPI_Status  status;
@@ -494,6 +498,23 @@ void Comm::exchange(Atom &atom)
   /* enforce PBC */
 
   atom.pbc();
+
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  int *      exc_sendlist = this->exc_sendlist;
+  int *      exc_copylist = this->exc_copylist;
+  int *      send_flag    = this->send_flag;
+  MMD_float *buf_send     = this->buf_send;
+  MMD_float *buf_recv     = this->buf_recv;
+#endif
+
+#ifdef USE_OFFLOAD
+  // Ensure that the atom positions, velocities and types are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update to(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
+  #pragma omp target update to(atom.v[0:(atom.nlocal + atom.nghost) * PAD])
+  #pragma omp target update to(atom.type[0:(atom.nlocal + atom.nghost)])
+#endif
 
   /* loop over dimensions */
 
@@ -526,23 +547,32 @@ void Comm::exchange(Atom &atom)
       hi = atom.box.zhi;
     }
 
-    x = atom.x;
+    x    = atom.x;
+    v    = atom.v;
+    type = atom.type;
 
     nlocal = atom.nlocal;
 
     if(nlocal > maxnlocal)
     {
-      send_flag = new int[nlocal];
+      send_flag = ( int * )mmd_replace_alloc(send_flag, nlocal * sizeof(int));
       maxnlocal = nlocal;
     }
 
     // count the number of atoms to exchange
     nsend = 0;
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for map(tofrom:nsend)
+#else
     #pragma omp parallel for reduction(+:nsend)
+#endif
     for(int i = 0; i < nlocal; ++i)
     {
       if(x[i * PAD + idim] < lo || x[i * PAD + idim] >= hi)
       {
+#ifdef USE_OFFLOAD
+        #pragma omp atomic
+#endif
         nsend++;
       }
     }
@@ -558,11 +588,19 @@ void Comm::exchange(Atom &atom)
     if(nsend * 7 > maxsend)
     {
       growsend(nsend * 7);
+#ifdef USE_OFFLOAD
+      // FIXME: Workaround for automatic copying of class members.
+      buf_send = this->buf_send;
+#endif
     }
 
     // build the sendlist
     nsend = 0;
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for map(tofrom:nsend)
+#else
     #pragma omp parallel for
+#endif
     for(int i = 0; i < nlocal; ++i)
     {
       if(x[i * PAD + idim] < lo || x[i * PAD + idim] >= hi)
@@ -578,6 +616,10 @@ void Comm::exchange(Atom &atom)
         send_flag[i] = 1;
       }
     }
+
+#ifdef USE_OFFLOAD
+    #pragma omp target update from(exc_sendlist[0:nsend], send_flag[0:nlocal])
+#endif
 
     // build the copylist
     int sendpos = nlocal - 1;
@@ -599,14 +641,44 @@ void Comm::exchange(Atom &atom)
       }
     }
 
+#ifdef USE_OFFLOAD
+    #pragma omp target update to(exc_copylist[0:nsend])
+#endif
+
     // pack the atoms into the send buffer
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for
+#else
     #pragma omp parallel for
+#endif
     for(int i = 0; i < nsend; ++i)
     {
-      atom.pack_exchange(exc_sendlist[i], &buf_send[i * 7]);
+      // Manually inlined pack_exchange
+      // FIXME: Workaround for automatic copying of class members.
+      // atom.pack_exchange(exc_sendlist[i], &buf_send[i * 7]);
+      int j               = exc_sendlist[i];
+      buf_send[i * 7 + 0] = x[j * PAD + 0];
+      buf_send[i * 7 + 1] = x[j * PAD + 1];
+      buf_send[i * 7 + 2] = x[j * PAD + 2];
+      buf_send[i * 7 + 3] = v[j * PAD + 0];
+      buf_send[i * 7 + 4] = v[j * PAD + 1];
+      buf_send[i * 7 + 5] = v[j * PAD + 2];
+      buf_send[i * 7 + 6] = type[j];
+
       if(exc_copylist[i] > 0)
       {
-        atom.copy(exc_copylist[i], exc_sendlist[i]);
+        // Manually inlined copy
+        // FIXME: Workaround for automatic copying of class members.
+        // atom.copy(exc_copylist[i], exc_sendlist[i]);
+        int src          = exc_copylist[i];
+        int dst          = exc_sendlist[i];
+        x[dst * PAD + 0] = x[src * PAD + 0];
+        x[dst * PAD + 1] = x[src * PAD + 1];
+        x[dst * PAD + 2] = x[src * PAD + 2];
+        v[dst * PAD + 0] = v[src * PAD + 0];
+        v[dst * PAD + 1] = v[src * PAD + 1];
+        v[dst * PAD + 2] = v[src * PAD + 2];
+        type[dst]        = type[src];
       }
     }
 
@@ -630,7 +702,15 @@ void Comm::exchange(Atom &atom)
     if(nrecv > maxrecv)
     {
       growrecv(nrecv);
+#ifdef USE_OFFLOAD
+      // FIXME: Workaround for automatic copying of class members.
+      buf_recv = this->buf_recv;
+#endif
     }
+
+#ifdef USE_OFFLOAD
+    #pragma omp target update from(buf_send[0:nsend])
+#endif
 
     if(sizeof(MMD_float) == 4)
     {
@@ -663,16 +743,27 @@ void Comm::exchange(Atom &atom)
 
     nrecv_atoms = nrecv / 7;
 
+#ifdef USE_OFFLOAD
+    #pragma omp target update to(buf_recv[0:nrecv])
+#endif
+
     /* check incoming atoms to see if they are in my box
        if they are, add to my list */
 
     nrecv = 0;
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for map(tofrom:nrecv)
+#else
     #pragma omp parallel for reduction(+:nrecv)
+#endif
     for(int i = 0; i < nrecv_atoms; ++i)
     {
       const MMD_float value = buf_recv[i * 7 + idim];
       if(value >= lo && value < hi)
       {
+#ifdef USE_OFFLOAD
+        #pragma omp atomic
+#endif
         nrecv++;
       }
     }
@@ -683,13 +774,29 @@ void Comm::exchange(Atom &atom)
       atom.nlocal += nrecv;
     }
 
-    while(atom.nlocal >= atom.nmax)
+    if(atom.nlocal >= atom.nmax)
     {
-      atom.growarray();
+#ifdef USE_OFFLOAD
+      #pragma omp target update from(atom.x[0:(atom.nlocal + atom.nghost) * PAD], atom.v[(atom.nlocal + atom.nghost) * PAD], atom.type[0:(atom.nlocal + atom.nghost)])
+#endif
+      while(atom.nlocal >= atom.nmax)
+      {
+        atom.growarray();
+        x    = atom.x;
+        v    = atom.v;
+        type = atom.type;
+      }
+#ifdef USE_OFFLOAD
+      #pragma omp target update to(atom.x[0:(atom.nlocal + atom.nghost) * PAD], atom.v[(atom.nlocal + atom.nghost) * PAD], atom.type[0:(atom.nlocal + atom.nghost)])
+#endif
     }
 
     int offset = atom.nlocal;
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for map(tofrom:offset)
+#else
     #pragma omp parallel for
+#endif
     for(int i = 0; i < nrecv_atoms; ++i)
     {
       const MMD_float value = buf_recv[i * 7 + idim];
@@ -698,10 +805,37 @@ void Comm::exchange(Atom &atom)
         int k;
         #pragma omp atomic capture
         k = offset++;
-        atom.unpack_exchange(k, &buf_recv[i * 7]);
+
+        // Manually inlined unpack_exchange
+        // FIXME: Workaround for automatic copying of class members.
+        // atom.unpack_exchange(k, &buf_recv[i * 7]);
+        x[k * PAD + 0] = buf_recv[i * 7 + 0];
+        x[k * PAD + 1] = buf_recv[i * 7 + 1];
+        x[k * PAD + 2] = buf_recv[i * 7 + 2];
+        v[k * PAD + 0] = buf_recv[i * 7 + 3];
+        v[k * PAD + 1] = buf_recv[i * 7 + 4];
+        v[k * PAD + 2] = buf_recv[i * 7 + 5];
+        type[k]        = buf_recv[i * 7 + 6];
       }
     }
   }
+
+#ifdef USE_OFFLOAD
+  // Ensure that the atom positions, velocities and types are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update from(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
+  #pragma omp target update from(atom.v[0:(atom.nlocal + atom.nghost) * PAD])
+  #pragma omp target update from(atom.type[0:(atom.nlocal + atom.nghost)])
+#endif
+
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  this->exc_sendlist = exc_sendlist;
+  this->exc_copylist = exc_copylist;
+  this->send_flag    = send_flag;
+  this->buf_send     = buf_send;
+  this->buf_recv     = buf_recv;
+#endif
 }
 
 void Comm::exchange_all(Atom &atom)
@@ -864,7 +998,7 @@ void Comm::borders(Atom &atom)
 
   if(atom.nlocal > maxnlocal)
   {
-    send_flag = new int[atom.nlocal];
+    send_flag = ( int * )mmd_replace_alloc(send_flag, atom.nlocal * sizeof(int));
     maxnlocal = atom.nlocal;
   }
 
