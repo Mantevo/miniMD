@@ -93,8 +93,6 @@ public:
   MMD_float *f_private;
 
 private:
-  int *      binpos;
-  int *      bins;
   MMD_float *x_copy;
   MMD_float *v_copy;
   int *      type_copy;

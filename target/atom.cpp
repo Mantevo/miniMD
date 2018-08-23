@@ -333,8 +333,8 @@ void Atom::sort(Neighbor &neighbor)
 {
   neighbor.binatoms(*this, nlocal);
 
-  binpos = neighbor.bincount;
-  bins   = neighbor.bins;
+  int *binpos = neighbor.bincount;
+  int *bins   = neighbor.bins;
 
   const int mbins         = neighbor.mbins;
   const int atoms_per_bin = neighbor.atoms_per_bin;
@@ -359,7 +359,24 @@ void Atom::sort(Neighbor &neighbor)
   MMD_float *old_v    = v;
   int *      old_type = type;
 
+#ifdef USE_OFFLOAD
+  // Ensure that the atom positions, velocities and types are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update to(old_x[0:(nlocal + nghost) * PAD])
+  #pragma omp target update to(old_v[0:(nlocal + nghost) * PAD])
+  #pragma omp target update to(old_type[0:(nlocal + nghost)])
+
+  // Ensure that the neighbor bincount and bins are up to date
+  // TODO: Remove this once we can
+  #pragma omp target update to(binpos[0:mbins])
+  #pragma omp target update to(bins[0:mbins * atoms_per_bin])
+#endif
+
+#ifdef USE_OFFLOAD
+  #pragma omp target teams distribute parallel for num_teams(2048) thread_limit(64)
+#else
   #pragma omp parallel for
+#endif
   for(int mybin = 0; mybin < mbins; mybin++)
   {
     const int start = mybin > 0 ? binpos[mybin - 1] : 0;
@@ -379,6 +396,13 @@ void Atom::sort(Neighbor &neighbor)
     }
   }
 
+#ifdef USE_OFFLOAD
+  #pragma omp target update from(new_x[0:(nlocal + nghost) * PAD])
+  #pragma omp target update from(new_v[0:(nlocal + nghost) * PAD])
+  #pragma omp target update from(new_type[0:(nlocal + nghost)])
+#endif
+
+  // TODO: Check that this sort of pointer swapping doesn't cause problems
   MMD_float *x_tmp    = x;
   MMD_float *v_tmp    = v;
   int *      type_tmp = type;
