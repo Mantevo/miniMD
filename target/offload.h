@@ -82,31 +82,15 @@ static void *mmd_replace_alloc(void *ptr, size_t bytes)
   return mmd_alloc(bytes);
 }
 
-static void *mmd_grow_alloc(void *ptr, size_t old_bytes, size_t new_bytes, bool sync_device = false)
+static void *mmd_grow_alloc(void *ptr, size_t old_bytes, size_t new_bytes)
 {
   char *old_ptr = ( char * )ptr;
   char *new_ptr = ( char * )mmd_alloc(new_bytes);
   if(old_ptr)
   {
     assert(old_bytes > 0);
-#if USE_OFFLOAD
-    if(sync_device)
-    {
-      #pragma omp target update from(old_ptr[0:old_bytes])
-    }
-#endif
     std::memcpy(new_ptr, old_ptr, old_bytes);
-#ifdef USE_OFFLOAD
-    if(sync_device)
-    {
-      #pragma omp target update to(new_ptr[0:new_bytes])
-    }
-#endif
     mmd_free(old_ptr);
-  }
-  else if(sync_device)
-  {
-    #pragma omp target update to(new_ptr[0:new_bytes])
   }
   return new_ptr;
 }
