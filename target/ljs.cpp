@@ -82,6 +82,7 @@ int main(int argc, char **argv)
   int   sort               = -1;
   int   ntypes             = 4;
   int   privatize          = 0; // 1: privatize force array; 0: use atomics
+  char *check_output       = 0;
 
   for(int i = 0; i < argc; i++)
   {
@@ -120,6 +121,12 @@ int main(int argc, char **argv)
     if((strcmp(argv[i], "-t") == 0) || (strcmp(argv[i], "--num_threads") == 0))
     {
       num_threads = atoi(argv[++i]);
+      continue;
+    }
+
+    if(strcmp(argv[i], "--check-output") == 0)
+    {
+      check_output = strdup(argv[++i]);
       continue;
     }
 
@@ -291,6 +298,7 @@ int main(int argc, char **argv)
 
       printf("\n  Miscelaneous:\n");
       printf("\t--check_exchange:             check whether atoms moved further than subdomain width\n");
+      printf("\t--check_output <file>:        write out final check values to file\n");
       printf("\t--safe_exchange:              perform exchange communication with all MPI processes\n"
              "\t                                within rcut_neighbor (outer force cutoff)\n");
       printf("\t--sort <n>:                   resort atoms (simple bins) every <n> steps (default: use reneigh frequency; never=0)");
@@ -587,8 +595,25 @@ int main(int argc, char **argv)
     output(in, atom, force, neighbor, comm, thermo, integrate, timer, screen_yaml);
   }
 
+  int status = EXIT_SUCCESS;
+
+  if(check_output)
+  {
+    FILE *fp = fopen(check_output, "w");
+    if(!fp)
+    {
+      fprintf(stderr, "Couldn't open %s for check output\n", check_output);
+      status = EXIT_FAILURE;
+    }
+    int end = thermo.mstat - 1;
+    fprintf(fp, "%i %e %e %e %6.3lf\n", integrate.ntimes, thermo.tmparr[end], thermo.engarr[end], thermo.prsarr[end], timer.array[TIME_TOTAL]);
+    fclose(fp);
+    printf("Wrote check output to %s\n", check_output);
+    free(check_output);
+  }
+
   delete force;
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
-  return 0;
+  return status;
 }
