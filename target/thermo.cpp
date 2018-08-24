@@ -172,12 +172,6 @@ MMD_float Thermo::temperature(Atom &atom)
   const MMD_float mass   = atom.mass;
   MMD_float *     v      = atom.v;
 
-#ifdef USE_OFFLOAD
-  // Ensure that the atom velocities are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(v[0:nlocal * PAD])
-#endif
-
   MMD_float t = 0.0;
 #ifdef USE_OFFLOAD
   #pragma omp target teams map(tofrom:t) thread_limit(MAX_TEAM_SIZE)
