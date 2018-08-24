@@ -127,14 +127,6 @@ void Neighbor::build(Atom &atom)
   int        nbinx         = this->nbinx;
   int        nbiny         = this->nbiny;
   int        nbinz         = this->nbinz;
-
-  // Ensure that the atom positions are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(x[0:nall * PAD])
-
-  // Ensure that the atom types are copied
-  // TODO: Remove this once we can
-  #pragma omp target update to(type[0:nall])
 #endif
 
   while(resize)
@@ -319,10 +311,6 @@ void Neighbor::binatoms(Atom &atom, int count)
   int       nbinx         = this->nbinx;
   int       nbiny         = this->nbiny;
   int       nbinz         = this->nbinz;
-
-  // Ensure that the atom positions are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(x[0:nall * PAD])
 #endif
 
   while(resize > 0)
