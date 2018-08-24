@@ -582,7 +582,15 @@ void create_velocity(double t_request, Atom &atom, Thermo &thermo)
   }
 
   /* rescale velocities, including old ones */
-  thermo.t_act  = 0;
+  thermo.t_act = 0;
+
+#ifdef USE_OFFLOAD
+  const MMD_float *v = atom.v;
+  // transfer atom velocities here
+  // we could alternatively do related compute on the device
+  #pragma omp target update to(v[0:atom.nlocal * PAD])
+#endif
+
   double t      = thermo.temperature(atom);
   double factor = sqrt(t_request / t);
 
