@@ -55,6 +55,7 @@ void create_box(Atom &, int, int, int, double);
 int  create_atoms(Atom &, int, int, int, double);
 void create_velocity(double, Atom &, Thermo &);
 void output(In &, Atom &, Force *, Neighbor &, Comm &, Thermo &, Integrate &, Timer &, int);
+void finalize_setup(const Atom &);
 int  read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &integrate, Thermo &thermo, char *file, int units);
 
 int main(int argc, char **argv)
@@ -504,6 +505,8 @@ int main(int argc, char **argv)
   {
     die("ERROR: ForceEAM not supported by OpenMP 5.0 version\n");
   }
+
+  finalize_setup(atom);
 
   if(me == 0)
   {

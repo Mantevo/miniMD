@@ -602,6 +602,20 @@ void create_velocity(double t_request, Atom &atom, Thermo &thermo)
   }
 }
 
+void finalize_setup(const Atom &atom)
+{
+#ifdef USE_OFFLOAD
+  const MMD_float *x    = atom.x;
+  const MMD_float *v    = atom.v;
+  const int *      type = atom.type;
+  // transfer atom state
+  #pragma omp target update to(x[0:atom.nlocal * PAD])
+  #pragma omp target update to(v[0:atom.nlocal * PAD])
+  #pragma omp target update to(type[0:atom.nlocal])
+#endif
+}
+
+
 /* Park/Miller RNG w/out MASKING, so as to be like f90s version */
 
 #define IA 16807
