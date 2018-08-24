@@ -193,7 +193,7 @@ void Atom::copy(int i, int j)
   type[j]        = type[i];
 }
 
-void Atom::pack_comm(int n, int *list, MMD_float *buf, int pbc_flags[4])
+void Atom::pack_comm(int n, int *list, MMD_float *buf, const int pbc_flags[4])
 {
 #ifdef USE_OFFLOAD
   // FIXME: Workaround for automatic copying of class members.
