@@ -73,6 +73,7 @@ public:
   void addatom(MMD_float, MMD_float, MMD_float, MMD_float, MMD_float, MMD_float);
   void pbc();
   void growarray();
+  void growarray_sync();
 
   void copy(int, int);
 

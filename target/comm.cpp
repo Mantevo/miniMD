@@ -768,19 +768,13 @@ void Comm::exchange(Atom &atom)
 
     if(atom.nlocal >= atom.nmax)
     {
-#ifdef USE_OFFLOAD
-      #pragma omp target update from(atom.x[0:(atom.nlocal + atom.nghost) * PAD], atom.v[(atom.nlocal + atom.nghost) * PAD], atom.type[0:(atom.nlocal + atom.nghost)])
-#endif
       while(atom.nlocal >= atom.nmax)
       {
-        atom.growarray();
+        atom.growarray_sync();
         x    = atom.x;
         v    = atom.v;
         type = atom.type;
       }
-#ifdef USE_OFFLOAD
-      #pragma omp target update to(atom.x[0:(atom.nlocal + atom.nghost) * PAD], atom.v[(atom.nlocal + atom.nghost) * PAD], atom.type[0:(atom.nlocal + atom.nghost)])
-#endif
     }
 
     int offset = atom.nlocal;
@@ -1180,18 +1174,12 @@ void Comm::borders(Atom &atom)
       n = atom.nlocal + atom.nghost;
       if(n + nrecv >= atom.nmax)
       {
-#ifdef USE_OFFLOAD
-        #pragma omp target update from(atom.x[0:(atom.nlocal + atom.nghost) * PAD], atom.type[0:(atom.nlocal + atom.nghost)])
-#endif
         while(n + nrecv >= atom.nmax)
         {
-          atom.growarray();
+          atom.growarray_sync();
         }
         x    = atom.x;
         type = atom.type;
-#ifdef USE_OFFLOAD
-        #pragma omp target update to(atom.x[0:(atom.nlocal + atom.nghost) * PAD], atom.type[0:(atom.nlocal + atom.nghost)])
-#endif
       }
 
 #ifdef USE_OFFLOAD

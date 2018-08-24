@@ -75,6 +75,59 @@ Atom::~Atom()
   }
 }
 
+void Atom::growarray_sync()
+{
+#ifdef USE_OFFLOAD
+  {
+    int        nlocal = this->nlocal;
+    int        nghost = this->nghost;
+    int        nmax   = this->nmax;
+    MMD_float *x      = this->x;
+    MMD_float *v      = this->v;
+    MMD_float *f      = this->f;
+    int *      type   = this->type;
+    MMD_float *xold   = this->xold;
+    size_t     N      = nmax * PAD;
+    #pragma omp target update from(x[0:N])
+    #pragma omp target update from(v[0:N])
+    #pragma omp target update from(f[0:N])
+    #pragma omp target update from(type[0:nmax])
+    #pragma omp target update from(xold[0:N])
+    if(privatize)
+    {
+      int        ncopies   = (threads->teams == 1) ? threads->omp_num_threads : threads->teams;
+      MMD_float *f_private = this->f_private;
+      #pragma omp target update from(f_private[0:ncopies * N])
+    }
+  }
+#endif
+  growarray();
+#ifdef USE_OFFLOAD
+  {
+    int        nlocal = this->nlocal;
+    int        nghost = this->nghost;
+    int        nmax   = this->nmax;
+    MMD_float *x      = this->x;
+    MMD_float *v      = this->v;
+    MMD_float *f      = this->f;
+    int *      type   = this->type;
+    MMD_float *xold   = this->xold;
+    size_t     N      = nmax * PAD;
+    #pragma omp target update to(x[0:N])
+    #pragma omp target update to(v[0:N])
+    #pragma omp target update to(f[0:N])
+    #pragma omp target update to(type[0:nmax])
+    #pragma omp target update to(xold[0:N])
+    if(privatize)
+    {
+      int        ncopies   = (threads->teams == 1) ? threads->omp_num_threads : threads->teams;
+      MMD_float *f_private = this->f_private;
+      #pragma omp target update to(f_private[0:ncopies * N])
+    }
+  }
+#endif
+}
+
 void Atom::growarray()
 {
   int nold = nmax;
@@ -319,7 +372,7 @@ int Atom::unpack_border(int i, MMD_float *buf)
 {
   if(i == nmax)
   {
-    growarray();
+    growarray_sync();
   }
 
   int m = 0;
@@ -349,7 +402,7 @@ int Atom::unpack_exchange(int i, MMD_float *buf)
 {
   if(i == nmax)
   {
-    growarray();
+    growarray_sync();
   }
 
   int m = 0;
