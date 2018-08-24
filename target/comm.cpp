@@ -500,14 +500,6 @@ void Comm::exchange(Atom &atom)
   MMD_float *buf_recv     = this->buf_recv;
 #endif
 
-#ifdef USE_OFFLOAD
-  // Ensure that the atom positions, velocities and types are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
-  #pragma omp target update to(atom.v[0:(atom.nlocal + atom.nghost) * PAD])
-  #pragma omp target update to(atom.type[0:(atom.nlocal + atom.nghost)])
-#endif
-
   /* loop over dimensions */
 
   for(int idim = 0; idim < 3; idim++)
