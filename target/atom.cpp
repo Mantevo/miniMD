@@ -434,6 +434,12 @@ void Atom::sort(Neighbor &neighbor)
     binpos[i] += binpos[i - 1];
   }
 
+#ifdef USE_OFFLOAD
+  // Ensure that the neighbor bincount and bins are up to date
+  // TODO: Should we make the above prefix sum run on the device?
+  #pragma omp target update to(binpos[0:mbins])
+#endif
+
   if(copy_size < nmax)
   {
     x_copy    = ( MMD_float * )mmd_replace_alloc(x_copy, nmax * PAD * sizeof(MMD_float));
@@ -448,19 +454,6 @@ void Atom::sort(Neighbor &neighbor)
   MMD_float *old_x    = x;
   MMD_float *old_v    = v;
   int *      old_type = type;
-
-#ifdef USE_OFFLOAD
-  // Ensure that the atom positions, velocities and types are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(old_x[0:(nlocal + nghost) * PAD])
-  #pragma omp target update to(old_v[0:(nlocal + nghost) * PAD])
-  #pragma omp target update to(old_type[0:(nlocal + nghost)])
-
-  // Ensure that the neighbor bincount and bins are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(binpos[0:mbins])
-  #pragma omp target update to(bins[0:mbins * atoms_per_bin])
-#endif
 
 #ifdef USE_OFFLOAD
   #pragma omp target teams distribute parallel for num_teams(2048) thread_limit(64)
