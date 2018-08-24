@@ -346,12 +346,6 @@ void Comm::communicate(Atom &atom)
   MPI_Request request;
   MPI_Status  status;
 
-#ifdef USE_OFFLOAD
-  // Ensure that the atom positions are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
-#endif
-
   for(int iswap = 0; iswap < nswap; iswap++)
   {
     /* pack buffer */
