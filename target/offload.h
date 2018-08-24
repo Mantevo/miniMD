@@ -75,7 +75,7 @@ inline bool check_offload_device(int nteams, int thread_lim)
   {
     if(i == 0)
     {
-        is_initial = omp_is_initial_device();
+      is_initial = omp_is_initial_device();
     }
   }
   return is_initial == 0;
@@ -85,8 +85,8 @@ inline bool check_offload_device(int nteams, int thread_lim)
 inline bool check_offload()
 {
 #ifdef USE_OFFLOAD
-  const int team_num_check = 2048;
-  const bool is_offloading = check_offload_device(team_num_check, MAX_TEAM_SIZE);
+  const int  team_num_check = 2048;
+  const bool is_offloading  = check_offload_device(team_num_check, MAX_TEAM_SIZE);
   if(is_offloading)
   {
     printf("Offload appears to be running somewhere other than the host (that's good.)\n");
@@ -108,7 +108,7 @@ inline bool check_offload()
   }
   // this is to get the runtime to say that it is running on the device more than anything
   // we don't expect it to be honored, so we won't bail if it isn't.
-  const int team_num       = team_num_test(team_num_check, MAX_TEAM_SIZE);
+  const int team_num = team_num_test(team_num_check, MAX_TEAM_SIZE);
   if(team_num == team_num_check)
   {
     printf("Team num %d respected by offload.\n", team_num_check);
