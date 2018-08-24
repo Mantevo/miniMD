@@ -32,7 +32,10 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 
 template <int N>
 struct CASmap;
@@ -78,5 +81,14 @@ void atomic_add(volatile T *val, T update)
   *val += update;
 }
 #endif
+
+static void die(const char *format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  vfprintf(stderr, format, args);
+  va_end(args);
+  exit(EXIT_FAILURE);
+}
 
 #endif

@@ -34,6 +34,7 @@
 #include "miniMD_math.h"
 #include "openmp.h"
 #include "stdio.h"
+#include "util.h"
 
 Integrate::Integrate() { sort_every = 20; }
 Integrate::~Integrate() {}
@@ -150,8 +151,7 @@ void Integrate::run(Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Th
       if(check_safeexchange)
       {
 #ifdef USE_OFFLOAD
-        fprintf(stderr, "ERROR: Check exchange not supported by OpenMP 5.0 version.\n");
-        exit(EXIT_FAILURE);
+        die("ERROR: Check exchange not supported by OpenMP 5.0 version.\n");
 #endif
         double d_max = 0;
 

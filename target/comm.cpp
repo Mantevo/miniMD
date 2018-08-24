@@ -35,6 +35,7 @@
 #include "openmp.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "util.h"
 #include <cassert>
 
 #define BUFFACTOR 1.5
@@ -483,8 +484,7 @@ void Comm::exchange(Atom &atom)
   if(do_safeexchange)
   {
 #ifdef USE_OFFLOAD
-    fprintf(stderr, "ERROR: Safe exchange not supported by OpenMP 5.0 version.\n");
-    exit(EXIT_FAILURE);
+    die("ERROR: Safe exchange not supported by OpenMP 5.0 version.\n");
 #endif
     return exchange_all(atom);
   }

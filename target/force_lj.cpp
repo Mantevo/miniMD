@@ -202,8 +202,7 @@ template <int EVFLAG>
 void Force::compute_original(Atom &atom, Neighbor &neighbor, int me)
 {
 #ifdef USE_OFFLOAD
-  fprintf(stderr, "ERROR: Cannot offload compute_original; please use --half_neigh 0 or 1.\n");
-  exit(EXIT_FAILURE);
+  die("ERROR: Cannot offload compute_original; please use --half_neigh 0 or 1.\n");
 #endif
 
   int        nlocal = atom.nlocal;
@@ -279,8 +278,7 @@ template <int EVFLAG, int GHOST_NEWTON>
 void Force::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
 {
 #ifdef USE_OFFLOAD
-  fprintf(stderr, "ERROR: Cannot offload compute_halfneigh without threading; please set -t > 1.\n");
-  exit(EXIT_FAILURE);
+  die("ERROR: Cannot offload compute_halfneigh without threading; please set -t > 1.\n");
 #endif
   const int              nlocal = atom.nlocal;
   const int              nall   = atom.nlocal + atom.nghost;
@@ -574,8 +572,7 @@ template <int EVFLAG, int GHOST_NEWTON>
 void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, int me)
 {
 #ifdef USE_OFFLOAD
-  fprintf(stderr, "ERROR: Cannot offload with --privatize 1.\n");
-  exit(EXIT_FAILURE);
+  die("ERROR: Cannot offload with --privatize 1.\n");
 #endif
 
   MMD_float t_eng_vdwl = 0;

@@ -44,6 +44,7 @@
 #include "thermo.h"
 #include "threadData.h"
 #include "timer.h"
+#include "util.h"
 #include "variant.h"
 
 #define MAXLINE 256
@@ -486,11 +487,7 @@ int main(int argc, char **argv)
 
   if(in.forcetype == FORCEEAM)
   {
-    if(me == 0)
-    {
-      fprintf(stderr, "ERROR: ForceEAM not supported by OpenMP 5.0 version\n");
-    }
-    exit(EXIT_FAILURE);
+    die("ERROR: ForceEAM not supported by OpenMP 5.0 version\n");
   }
 
   if(me == 0)
