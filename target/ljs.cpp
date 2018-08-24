@@ -39,6 +39,7 @@
 #include "integrate.h"
 #include "ljs.h"
 #include "neighbor.h"
+#include "offload.h"
 #include "openmp.h"
 #include "string.h"
 #include "thermo.h"
@@ -311,6 +312,12 @@ int main(int argc, char **argv)
     }
   }
 
+#ifdef USE_OFFLOAD
+  if(!check_offload())
+  {
+    die("Offload isn't working properly\n");
+  }
+#endif
 
   Atom       atom(ntypes);
   Neighbor   neighbor(ntypes);

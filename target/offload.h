@@ -32,12 +32,96 @@
 #define OFFLOAD_H
 
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <omp.h>
 
 #ifdef USE_OFFLOAD
 #define MAX_TEAM_SIZE 128
 #endif
+
+inline int conforming_team_size(int size)
+{
+  int observed_size;
+  #pragma omp target teams map(tofrom:observed_size) thread_limit(size)
+  {
+    if(omp_get_team_num() == 0)
+    {
+      observed_size = omp_get_max_threads();
+    }
+  }
+  return observed_size;
+}
+
+inline int team_num_test(int nteams, int thread_lim)
+{
+  int observed_num;
+  #pragma omp target teams distribute parallel for num_teams(nteams) map(tofrom:observed_num) thread_limit(thread_lim)
+  for(int i = 0; i < nteams * thread_lim; ++i)
+  {
+    if(i == 0)
+    {
+      observed_num = omp_get_num_teams();
+    }
+  }
+  return observed_num;
+}
+
+inline bool check_offload_device(int nteams, int thread_lim)
+{
+  int is_initial = 1;
+  #pragma omp target teams distribute parallel for num_teams(nteams) thread_limit(thread_lim) map(tofrom:is_initial)
+  for(int i = 0; i < nteams * thread_lim; ++i)
+  {
+    if(i == 0)
+    {
+        is_initial = omp_is_initial_device();
+    }
+  }
+  return is_initial == 0;
+}
+
+
+inline bool check_offload()
+{
+#ifdef USE_OFFLOAD
+  const int team_num_check = 2048;
+  const bool is_offloading = check_offload_device(team_num_check, MAX_TEAM_SIZE);
+  if(is_offloading)
+  {
+    printf("Offload appears to be running somewhere other than the host (that's good.)\n");
+  }
+  else
+  {
+    fprintf(stderr, "'Offload' appears to be running on the host (that's bad.)\n");
+  }
+
+  const int  teamsize    = conforming_team_size(MAX_TEAM_SIZE);
+  const bool teamsize_ok = teamsize <= MAX_TEAM_SIZE;
+  if(teamsize_ok)
+  {
+    printf("Team size limit %d respected by offload (got %d.)\n", MAX_TEAM_SIZE, teamsize);
+  }
+  else
+  {
+    fprintf(stderr, "Team size limit %d NOT respected by offload! (got %d.)\n", MAX_TEAM_SIZE, teamsize);
+  }
+  // this is to get the runtime to say that it is running on the device more than anything
+  // we don't expect it to be honored, so we won't bail if it isn't.
+  const int team_num       = team_num_test(team_num_check, MAX_TEAM_SIZE);
+  if(team_num == team_num_check)
+  {
+    printf("Team num %d respected by offload.\n", team_num_check);
+  }
+  else
+  {
+    printf("Team num %d NOT respected by offload! (got %d.)\n", team_num_check, team_num);
+  }
+  return teamsize_ok;
+#else
+  return false;
+#endif
+}
 
 static void *mmd_alloc(size_t bytes)
 {
