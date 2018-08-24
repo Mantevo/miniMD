@@ -131,10 +131,6 @@ void Atom::pbc()
   int        nlocal = this->nlocal;
   Box        box    = this->box;
   MMD_float *x      = this->x;
-
-  // Ensure that the atom positions are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(x[0:nlocal * PAD])
 #endif
 
 #ifdef USE_OFFLOAD
