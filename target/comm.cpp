@@ -412,12 +412,6 @@ void Comm::communicate(Atom &atom)
 
 void Comm::reverse_communicate(Atom &atom)
 {
-#ifdef USE_OFFLOAD
-  // Ensure that the atom forces are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update to(atom.f[0:(atom.nlocal + atom.nghost) * PAD])
-#endif
-
   MMD_float * buf;
   MPI_Request request;
   MPI_Status  status;
@@ -464,12 +458,6 @@ void Comm::reverse_communicate(Atom &atom)
 #endif
     atom.unpack_reverse(sendnum[iswap], sendlist[iswap], buf);
   }
-
-#ifdef USE_OFFLOAD
-  // Synchronize the f array across host/device
-  // TODO: Remove this once Comm is offloaded
-  #pragma omp target update from(atom.f[0:(atom.nlocal + atom.nghost) * PAD])
-#endif
 }
 
 /* exchange:

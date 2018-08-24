@@ -387,8 +387,6 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   const MMD_float *epsilon    = this->epsilon;
   const MMD_float *sigma6     = this->sigma6;
   const int        ntypes     = this->ntypes;
-  #pragma omp target update to(x[:nall * PAD])
-  #pragma omp target update to(type[:nall])  // TODO: only copy type after sorting also: when copy x?
 #endif
 
 // clear force on own and ghost atoms
@@ -484,10 +482,6 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     atomic_add(&f[i * PAD + 1], fiy);
     atomic_add(&f[i * PAD + 2], fiz);
   }
-
-#ifdef USE_OFFLOAD
-  #pragma omp target update from(f[0:nall * PAD])
-#endif
 
   eng_vdwl += t_eng_vdwl;
   virial += t_virial;
@@ -707,8 +701,6 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   const MMD_float *epsilon    = this->epsilon;
   const MMD_float *sigma6     = this->sigma6;
   const int        ntypes     = this->ntypes;
-  #pragma omp target update to(x[0:nall * PAD])
-  #pragma omp target update to(type[0:nall])  // TODO: only copy type after sorting also: when copy x?
 #endif
 
   // loop over all neighbors of my atoms
@@ -805,10 +797,6 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
     }
 #endif
   }
-
-#ifdef USE_OFFLOAD
-  #pragma omp target update from(f[0:nall*PAD])
-#endif
 
   if(EVFLAG)
   {

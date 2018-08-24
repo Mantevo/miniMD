@@ -49,12 +49,6 @@ void Integrate::initialIntegrate()
   MMD_float *     f       = this->f;
   MMD_float *     v       = this->v;
   const MMD_float dtforce = this->dtforce;
-
-  // Ensure that the atom positions, forces and velocities are up to date.
-  // TODO: Remove this once we can
-  #pragma omp target update to(x[0:nlocal * PAD])
-  #pragma omp target update to(f[0:nlocal * PAD])
-  #pragma omp target update to(v[0:nlocal * PAD])
 #endif
 
 #ifdef USE_OFFLOAD
@@ -87,11 +81,6 @@ void Integrate::finalIntegrate()
   MMD_float *     f       = this->f;
   MMD_float *     v       = this->v;
   const MMD_float dtforce = this->dtforce;
-
-  // Ensure that the atom forces and velocities are up to date.
-  // TODO: Remove this once we can
-  #pragma omp target update to(f[0:nlocal * PAD])
-  #pragma omp target update to(v[0:nlocal * PAD])
 #endif
 
 #ifdef USE_OFFLOAD
