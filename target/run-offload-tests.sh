@@ -16,12 +16,16 @@ then
 fi
 
 nthreads=$1
-for var in nooffload nvptx # x86
+
+nthreads=$1
+
+build_count=0
+build_success=0
+run_count=0
+run_success=0
+
+for var in nooffload nvptx x86
 do
-    build_count=0
-    build_success=0
-    run_count=0
-    run_success=0
     errfile=$(mktemp -t "$(basename $0).XXXX")
     outfile=$(mktemp -t "$(basename $0).XXXX")
     printf "Trying OFFLOAD=$var..."
