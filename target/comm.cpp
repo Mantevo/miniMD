@@ -493,7 +493,7 @@ void Comm::exchange(Atom &atom)
   MMD_float lo, hi;
 
   MMD_float *x    = atom.x;
-  MMD_float *v    = atom.f;
+  MMD_float *v    = atom.v;
   int *      type = atom.type;
 
   MPI_Request request;
