@@ -94,6 +94,8 @@ public:
   int *exc_sendlist;
   int *exc_copylist;
   int  maxexc;
+
+  int *pbc_flags; // [iswap][4]
 };
 
 #endif

@@ -236,7 +236,7 @@ void Atom::copy(int i, int j)
   type[j]        = type[i];
 }
 
-void Atom::pack_comm(int n, int *list, MMD_float *buf, const int pbc_flags[4])
+void Atom::pack_comm(int n, int *list, MMD_float *buf, const int *pbc_flags)
 {
 #ifdef USE_OFFLOAD
   // FIXME: Workaround for automatic copying of class members.
@@ -266,7 +266,7 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, const int pbc_flags[4])
   else
   {
 #ifdef USE_OFFLOAD
-    #pragma omp target teams distribute parallel for map(to:pbc_flags[0:4])
+    #pragma omp target teams distribute parallel for
 #else
     #pragma omp parallel for
 #endif

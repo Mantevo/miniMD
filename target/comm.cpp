@@ -57,9 +57,13 @@ Comm::Comm()
   exc_sendlist       = ( int * )mmd_alloc(maxexc * sizeof(int));
   exc_copylist       = ( int * )mmd_alloc(maxexc * sizeof(int));
   send_flag          = NULL;
+  pbc_flags          = NULL;
 }
 
-Comm::~Comm() {}
+Comm::~Comm()
+{
+  mmd_free(pbc_flags);
+}
 
 /* setup spatial-decomposition communication patterns */
 
@@ -186,6 +190,7 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
   comm_recv_size    = ( int * )mmd_alloc(maxswap * sizeof(int));
   reverse_send_size = ( int * )mmd_alloc(maxswap * sizeof(int));
   reverse_recv_size = ( int * )mmd_alloc(maxswap * sizeof(int));
+  pbc_flags         = ( int * )mmd_alloc(maxswap * 4 * sizeof(int));
   int iswap         = 0;
 
   for(int idim = 0; idim < 3; idim++)
@@ -334,6 +339,18 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
     }
   }
 
+  // FIXME: Workaround for repeated transfer of pbc_flags
+  for(int iswap = 0; iswap < nswap; iswap++)
+  {
+    pbc_flags[iswap * 4 + 0] = pbc_any[iswap];
+    pbc_flags[iswap * 4 + 1] = pbc_flagx[iswap];
+    pbc_flags[iswap * 4 + 2] = pbc_flagy[iswap];
+    pbc_flags[iswap * 4 + 3] = pbc_flagz[iswap];
+  }
+#ifdef USE_OFFLOAD
+  #pragma omp target update to(pbc_flags[0:nswap * 4])
+#endif
+
   return 0;
 }
 
@@ -341,7 +358,6 @@ int Comm::setup(MMD_float cutneigh, Atom &atom)
 
 void Comm::communicate(Atom &atom)
 {
-  int         pbc_flags[4];
   MMD_float * buf;
   MPI_Request request;
   MPI_Status  status;
@@ -349,12 +365,7 @@ void Comm::communicate(Atom &atom)
   for(int iswap = 0; iswap < nswap; iswap++)
   {
     /* pack buffer */
-    pbc_flags[0] = pbc_any[iswap];
-    pbc_flags[1] = pbc_flagx[iswap];
-    pbc_flags[2] = pbc_flagy[iswap];
-    pbc_flags[3] = pbc_flagz[iswap];
-
-    atom.pack_comm(sendnum[iswap], sendlist[iswap], buf_send, pbc_flags);
+    atom.pack_comm(sendnum[iswap], sendlist[iswap], buf_send, &pbc_flags[iswap * 4]);
 
     /* exchange with another proc
        if self, set recv buffer to send buffer */
@@ -924,7 +935,6 @@ void Comm::borders(Atom &atom)
 {
   int       n, iswap, nsend, nrecv, nfirst, nlast;
   MMD_float lo, hi;
-  int       pbc_flags[4];
 
   MMD_float *x    = atom.x;
   int *      type = atom.type;
@@ -952,6 +962,7 @@ void Comm::borders(Atom &atom)
   int *      exc_sendlist = this->exc_sendlist;
   MMD_float *buf_send     = this->buf_send;
   MMD_float *buf_recv     = this->buf_recv;
+  int *      pbc_flags    = this->pbc_flags;
 #endif
 
   for(int idim = 0; idim < 3; idim++)
@@ -969,10 +980,6 @@ void Comm::borders(Atom &atom)
 
       lo           = slablo[iswap];
       hi           = slabhi[iswap];
-      pbc_flags[0] = pbc_any[iswap];
-      pbc_flags[1] = pbc_flagx[iswap];
-      pbc_flags[2] = pbc_flagy[iswap];
-      pbc_flags[3] = pbc_flagz[iswap];
 
       x    = atom.x;
       type = atom.type;
@@ -1042,7 +1049,7 @@ void Comm::borders(Atom &atom)
       // pack the atoms into the send buffer
       int *sendlist_iswap = sendlist[iswap];
 #ifdef USE_OFFLOAD
-      #pragma omp target teams distribute parallel for map(to:pbc_flags[0:4])
+      #pragma omp target teams distribute parallel for
 #else
       #pragma omp parallel for
 #endif
@@ -1052,7 +1059,7 @@ void Comm::borders(Atom &atom)
         // FIXME: Workaround for automatic copying of class members.
         // atom.pack_border(exc_sendlist[k], &buf_send[k * 4], pbc_flags);
         int j = exc_sendlist[k];
-        if(pbc_flags[0] == 0)
+        if(pbc_flags[iswap * 4 + 0] == 0)
         {
           buf_send[k * 4 + 0] = x[j * PAD + 0];
           buf_send[k * 4 + 1] = x[j * PAD + 1];
@@ -1061,9 +1068,9 @@ void Comm::borders(Atom &atom)
         }
         else
         {
-          buf_send[k * 4 + 0] = x[j * PAD + 0] + pbc_flags[1] * box.xprd;
-          buf_send[k * 4 + 1] = x[j * PAD + 1] + pbc_flags[2] * box.yprd;
-          buf_send[k * 4 + 2] = x[j * PAD + 2] + pbc_flags[3] * box.zprd;
+          buf_send[k * 4 + 0] = x[j * PAD + 0] + pbc_flags[iswap * 4 + 1] * box.xprd;
+          buf_send[k * 4 + 1] = x[j * PAD + 1] + pbc_flags[iswap * 4 + 2] * box.yprd;
+          buf_send[k * 4 + 2] = x[j * PAD + 2] + pbc_flags[iswap * 4 + 3] * box.zprd;
           buf_send[k * 4 + 3] = type[j];
         }
         sendlist_iswap[k] = exc_sendlist[k];
