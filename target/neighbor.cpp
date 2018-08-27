@@ -270,10 +270,6 @@ void Neighbor::build(Atom &atom)
   }
 
 #ifdef USE_OFFLOAD
-  // Synchronize the neighbors and numneigh arrays across host/device
-  // TODO: Remove this once the force compute is offloaded
-  #pragma omp target update from(numneigh[0:nmax], neighbors[0:nmax * maxneighs])
-
   // FIXME: Workaround for automatic copying of class members.
   this->maxneighs = maxneighs;
   this->neighbors = neighbors;
