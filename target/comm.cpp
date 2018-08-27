@@ -394,12 +394,6 @@ void Comm::communicate(Atom &atom)
     /* unpack buffer */
     atom.unpack_comm(recvnum[iswap], firstrecv[iswap], buf);
   }
-
-#ifdef USE_OFFLOAD
-  // Synchronize the x array across host/device
-  // TODO: Remove this once Comm is offloaded
-  #pragma omp target update from(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
-#endif
 }
 
 /* reverse communication of atom info every timestep */
