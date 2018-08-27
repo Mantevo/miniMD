@@ -787,14 +787,6 @@ void Comm::exchange(Atom &atom)
   }
 
 #ifdef USE_OFFLOAD
-  // Ensure that the atom positions, velocities and types are up to date
-  // TODO: Remove this once we can
-  #pragma omp target update from(atom.x[0:(atom.nlocal + atom.nghost) * PAD])
-  #pragma omp target update from(atom.v[0:(atom.nlocal + atom.nghost) * PAD])
-  #pragma omp target update from(atom.type[0:(atom.nlocal + atom.nghost)])
-#endif
-
-#ifdef USE_OFFLOAD
   // FIXME: Workaround for automatic copying of class members.
   this->exc_sendlist = exc_sendlist;
   this->exc_copylist = exc_copylist;
