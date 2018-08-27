@@ -77,8 +77,10 @@ public:
 
   void copy(int, int);
 
-  void pack_comm(int, int *, MMD_float *, const int*);
+  void pack_comm(int, int *, MMD_float *, const int *);
   void unpack_comm(int, int, MMD_float *);
+  void self_comm(int, int *, int, const int *);
+
   void pack_reverse(int, int, MMD_float *);
   void unpack_reverse(int, int *, MMD_float *);
 

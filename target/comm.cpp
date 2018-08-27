@@ -60,10 +60,7 @@ Comm::Comm()
   pbc_flags          = NULL;
 }
 
-Comm::~Comm()
-{
-  mmd_free(pbc_flags);
-}
+Comm::~Comm() { mmd_free(pbc_flags); }
 
 /* setup spatial-decomposition communication patterns */
 
@@ -364,13 +361,13 @@ void Comm::communicate(Atom &atom)
 
   for(int iswap = 0; iswap < nswap; iswap++)
   {
-    /* pack buffer */
-    atom.pack_comm(sendnum[iswap], sendlist[iswap], buf_send, &pbc_flags[iswap * 4]);
-
     /* exchange with another proc
        if self, set recv buffer to send buffer */
     if(sendproc[iswap] != me)
     {
+      /* pack buffer */
+      atom.pack_comm(sendnum[iswap], sendlist[iswap], buf_send, &pbc_flags[iswap * 4]);
+
 #ifdef USE_OFFLOAD
       #pragma omp target update from(buf_send[0:comm_send_size[iswap]])
 #endif
@@ -389,14 +386,15 @@ void Comm::communicate(Atom &atom)
       #pragma omp target update to(buf_recv[0:comm_recv_size[iswap]])
 #endif
       buf = buf_recv;
+
+      /* unpack buffer */
+      atom.unpack_comm(recvnum[iswap], firstrecv[iswap], buf);
     }
     else
     {
-      buf = buf_send;
+      /* directly copy atoms instead of pack/unpack */
+      atom.self_comm(sendnum[iswap], sendlist[iswap], firstrecv[iswap], &pbc_flags[iswap * 4]);
     }
-
-    /* unpack buffer */
-    atom.unpack_comm(recvnum[iswap], firstrecv[iswap], buf);
   }
 }
 
@@ -978,8 +976,8 @@ void Comm::borders(Atom &atom)
       //   for later swaps in a dim, only check newly arrived ghosts
       // store sent atom indices in list for use in future timesteps
 
-      lo           = slablo[iswap];
-      hi           = slabhi[iswap];
+      lo = slablo[iswap];
+      hi = slabhi[iswap];
 
       x    = atom.x;
       type = atom.type;
