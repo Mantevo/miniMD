@@ -65,13 +65,6 @@ void Integrate::initialIntegrate()
     x[i * PAD + 1] += dt * v[i * PAD + 1];
     x[i * PAD + 2] += dt * v[i * PAD + 2];
   }
-
-#ifdef USE_OFFLOAD
-  // Synchronize the atom positions, forces and velocities across devices.
-  // TODO: Remove this once we can
-  #pragma omp target update from(x[0:nlocal * PAD])
-  #pragma omp target update from(v[0:nlocal * PAD])
-#endif
 }
 
 void Integrate::finalIntegrate()
@@ -94,12 +87,6 @@ void Integrate::finalIntegrate()
     v[i * PAD + 1] += dtforce * f[i * PAD + 1];
     v[i * PAD + 2] += dtforce * f[i * PAD + 2];
   }
-
-#ifdef USE_OFFLOAD
-  // Synchronize the atom velocities across devices.
-  // TODO: Remove this once we can
-  #pragma omp target update from(v[0:nlocal * PAD])
-#endif
 }
 
 void Integrate::run(Atom &atom, Force *force, Neighbor &neighbor, Comm &comm, Thermo &thermo, Timer &timer)
