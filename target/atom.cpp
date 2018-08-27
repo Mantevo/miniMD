@@ -240,9 +240,12 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, const int pbc_flags[4])
 {
 #ifdef USE_OFFLOAD
   // FIXME: Workaround for automatic copying of class members.
-  Box        box = this->box;
-  MMD_float *x   = this->x;
+  MMD_float *x = this->x;
 #endif
+  const MMD_float xprd = box.xprd;
+  const MMD_float yprd = box.yprd;
+  const MMD_float zprd = box.zprd;
+
 
   if(pbc_flags[0] == 0)
   {
@@ -271,9 +274,9 @@ void Atom::pack_comm(int n, int *list, MMD_float *buf, const int pbc_flags[4])
     {
       const int j = list[i];
 
-      buf[3 * i]     = x[j * PAD + 0] + pbc_flags[1] * box.xprd;
-      buf[3 * i + 1] = x[j * PAD + 1] + pbc_flags[2] * box.yprd;
-      buf[3 * i + 2] = x[j * PAD + 2] + pbc_flags[3] * box.zprd;
+      buf[3 * i]     = x[j * PAD + 0] + pbc_flags[1] * xprd;
+      buf[3 * i + 1] = x[j * PAD + 1] + pbc_flags[2] * yprd;
+      buf[3 * i + 2] = x[j * PAD + 2] + pbc_flags[3] * zprd;
     }
   }
 }
@@ -295,6 +298,50 @@ void Atom::unpack_comm(int n, int first, MMD_float *buf)
     x[(first + i) * PAD + 0] = buf[3 * i];
     x[(first + i) * PAD + 1] = buf[3 * i + 1];
     x[(first + i) * PAD + 2] = buf[3 * i + 2];
+  }
+}
+
+void Atom::self_comm(int n, int *list, int first, const int *pbc_flags)
+{
+#ifdef USE_OFFLOAD
+  // FIXME: Workaround for automatic copying of class members.
+  MMD_float *x = this->x;
+#endif
+  const MMD_float xprd = box.xprd;
+  const MMD_float yprd = box.yprd;
+  const MMD_float zprd = box.zprd;
+
+  if(pbc_flags[0] == 0)
+  {
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for
+#else
+    #pragma omp parallel for
+#endif
+    for(int i = 0; i < n; i++)
+    {
+      const int j = list[i];
+
+      x[(first + i) * PAD + 0] = x[j * PAD + 0];
+      x[(first + i) * PAD + 1] = x[j * PAD + 1];
+      x[(first + i) * PAD + 2] = x[j * PAD + 2];
+    }
+  }
+  else
+  {
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for
+#else
+    #pragma omp parallel for
+#endif
+    for(int i = 0; i < n; i++)
+    {
+      const int j = list[i];
+
+      x[(first + i) * PAD + 0] = x[j * PAD + 0] + pbc_flags[1] * xprd;
+      x[(first + i) * PAD + 1] = x[j * PAD + 1] + pbc_flags[2] * yprd;
+      x[(first + i) * PAD + 2] = x[j * PAD + 2] + pbc_flags[3] * zprd;
+    }
   }
 }
 
