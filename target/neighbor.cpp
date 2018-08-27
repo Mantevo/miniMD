@@ -406,9 +406,9 @@ void Neighbor::binatoms(Atom &atom, int count)
   }
 
 #ifdef USE_OFFLOAD
-  // Synchronize the bincount and bins arrays across host/device
+  // Synchronize the bincount across host/device
   // TODO: Remove this once the neighbor list build and atom sort are offloaded
-  #pragma omp target update from(bincount[0:mbins], bins[0:mbins * atoms_per_bin])
+  #pragma omp target update from(bincount[0:mbins])
 
   // FIXME: Workaround for automatic copying of class members.
   this->atoms_per_bin = atoms_per_bin;
