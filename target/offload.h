@@ -37,7 +37,7 @@
 #include <omp.h>
 
 #ifdef USE_OFFLOAD
-#define MAX_TEAM_SIZE 128
+#define MAX_TEAM_SIZE 64
 #endif
 
 inline int conforming_team_size(int size)
