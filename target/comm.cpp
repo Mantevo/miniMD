@@ -354,13 +354,6 @@ void Comm::communicate(Atom &atom)
     pbc_flags[2] = pbc_flagy[iswap];
     pbc_flags[3] = pbc_flagz[iswap];
 
-#ifdef USE_OFFLOAD
-    // Transfer the list
-    // TODO: Remove this once we can
-    int *tmp_sendlist = sendlist[iswap];
-    #pragma omp target update to(tmp_sendlist[0:sendnum[iswap]])
-#endif
-
     atom.pack_comm(sendnum[iswap], sendlist[iswap], buf_send, pbc_flags);
 
     /* exchange with another proc
@@ -438,12 +431,6 @@ void Comm::reverse_communicate(Atom &atom)
     }
 
     /* unpack buffer */
-#ifdef USE_OFFLOAD
-    // Transfer the list
-    // TODO: Remove this once we can
-    int *tmp_sendlist = sendlist[iswap];
-    #pragma omp target update to(tmp_sendlist[0:sendnum[iswap]])
-#endif
     atom.unpack_reverse(sendnum[iswap], sendlist[iswap], buf);
   }
 }
