@@ -223,12 +223,6 @@ void Atom::pbc()
       x[i * PAD + 2] -= box.zprd;
     }
   }
-
-#ifdef USE_OFFLOAD
-  // Synchronize the x array across host/device
-  // TODO: Remove this once everything is offloaded
-  #pragma omp target update from(x[0:nlocal * PAD])
-#endif
 }
 
 void Atom::copy(int i, int j)
