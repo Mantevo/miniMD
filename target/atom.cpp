@@ -423,16 +423,12 @@ void Atom::sort(Neighbor &neighbor)
   const int mbins         = neighbor.mbins;
   const int atoms_per_bin = neighbor.atoms_per_bin;
 
+  #pragma omp target
+  // TODO: implement an actual parallel prefix sum? Probably not worth it.
   for(int i = 1; i < mbins; i++)
   {
     binpos[i] += binpos[i - 1];
   }
-
-#ifdef USE_OFFLOAD
-  // Ensure that the neighbor bincount and bins are up to date
-  // TODO: Should we make the above prefix sum run on the device?
-  #pragma omp target update to(binpos[0:mbins])
-#endif
 
   if(copy_size < nmax)
   {
