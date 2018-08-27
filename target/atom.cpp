@@ -473,12 +473,6 @@ void Atom::sort(Neighbor &neighbor)
     }
   }
 
-#ifdef USE_OFFLOAD
-  #pragma omp target update from(new_x[0:(nlocal + nghost) * PAD])
-  #pragma omp target update from(new_v[0:(nlocal + nghost) * PAD])
-  #pragma omp target update from(new_type[0:(nlocal + nghost)])
-#endif
-
   // TODO: Check that this sort of pointer swapping doesn't cause problems
   MMD_float *x_tmp    = x;
   MMD_float *v_tmp    = v;
