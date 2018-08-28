@@ -93,6 +93,11 @@ int main(int argc, char **argv)
       input_file = argv[++i];
       continue;
     }
+    if((strcmp(argv[i], "--print-user-max-team-size") == 0))
+    {
+      printf("%d\n", get_user_max_team_size());
+      exit(EXIT_SUCCESS);
+    }
   }
 
   MPI_Init(&argc, &argv);

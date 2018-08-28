@@ -35,6 +35,16 @@ do
     then
         printf "${GREEN}BUILD PASSED${NORMAL}!\n"
         build_success=$((build_success + 1))
+
+        if [ "${var}" = x86 ]
+        then
+            maxthreads=`./miniMD_clang --print-user-max-team-size`
+            if [ $nthreads -gt $maxthreads ]
+            then
+                echo "Clamping # of threads for ${var} target (max team size is ${maxthreads}, ${nthreads} requested.)"
+                nthreads=$maxthreads
+            fi
+        fi
         for halfneigh in 0 1
         do
             resfile=$(mktemp -t "$(basename $0).XXXX")

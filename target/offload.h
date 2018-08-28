@@ -36,9 +36,14 @@
 #include <cstring>
 #include <omp.h>
 
+inline int get_user_max_team_size()
+{
 #ifdef USE_OFFLOAD
-#define MAX_TEAM_SIZE 64
+  return MAX_TEAM_SIZE;
+#else
+  return 0;
 #endif
+}
 
 inline int conforming_team_size(int size)
 {
