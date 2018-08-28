@@ -38,9 +38,9 @@ do
         for halfneigh in 0 1
         do
             resfile=$(mktemp -t "$(basename $0).XXXX")
-            printf "Running taskset -c 0-${nthreads} ./miniMD_clang -t ${nthreads} --half_neigh ${halfneigh} "
+            printf "Running taskset -c 0-$((nthreads-1)) ./miniMD_clang -t ${nthreads} --half_neigh ${halfneigh} "
             run_count=$((run_count + 1))
-            taskset -c 0-${nthreads} ./miniMD_clang -t ${nthreads} --half_neigh ${halfneigh} --check-output ${resfile} 2> ${errfile} > ${outfile}
+            taskset -c 0-$((nthreads-1)) ./miniMD_clang -t ${nthreads} --half_neigh ${halfneigh} --check-output ${resfile} 2> ${errfile} > ${outfile}
             if [ $? -ne 0 ]
             then
                 printf "  ${RED}RUN FAILED${NORMAL}!\n"
