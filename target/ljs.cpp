@@ -47,6 +47,9 @@
 #include "timer.h"
 #include "util.h"
 #include "variant.h"
+#ifdef OFFLOAD_NVPTX
+#include "nvToolsExt.h"
+#endif
 
 #define MAXLINE 256
 
@@ -580,7 +583,13 @@ int main(int argc, char **argv)
   thermo.compute(0, atom, neighbor, force, timer, comm);
 
   timer.barrier_start(TIME_TOTAL);
+#ifdef OFFLOAD_NVPTX
+  nvtxRangeId_t id1 = nvtxRangeStartA("Compute range");
+#endif
   integrate.run(atom, force, neighbor, comm, thermo, timer);
+#ifdef OFFLOAD_NVPTX
+  nvtxRangeEnd(id1);
+#endif
   timer.barrier_stop(TIME_TOTAL);
 
   int natoms;

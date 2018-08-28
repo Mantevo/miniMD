@@ -1,7 +1,7 @@
 # Makefile for mpicxx compiler
 
 SHELL = /bin/sh
-
+CUDA_ROOT?=/usr/local/cuda-8.0/
 # Default Options
 #
 SIMD = no
@@ -57,11 +57,11 @@ USRLIB += -lrt
 endif
 
 ifeq ($(OFFLOAD), x86)
-CCFLAGS += -fopenmp-targets=x86_64-unknown-linux-gnu -DUSE_OFFLOAD -DMAX_TEAM_SIZE=64
+CCFLAGS += -fopenmp-targets=x86_64-unknown-linux-gnu -DUSE_OFFLOAD -DOFFLOAD_X86 -DMAX_TEAM_SIZE=64
 LINKFLAGS += -fopenmp-targets=x86_64-unknown-linux-gnu
 endif
 
 ifeq ($(OFFLOAD), nvptx)
-CCFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda -DUSE_OFFLOAD -DMAX_TEAM_SIZE=64
-LINKFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda
+CCFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda -DUSE_OFFLOAD -DOFFLOAD_NVPTX -DMAX_TEAM_SIZE=64 -I$(CUDA_ROOT)/include
+LINKFLAGS += -fopenmp-targets=nvptx64-nvidia-cuda -L$(CUDA_ROOT)/lib64 -lnvToolsExt
 endif
