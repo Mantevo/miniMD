@@ -33,6 +33,7 @@
 #include "mpi.h"
 #include "neighbor.h"
 #include "offload.h"
+#include "util.h"
 
 #include "stdio.h"
 #include "stdlib.h"
@@ -470,12 +471,7 @@ void Atom::sort(Neighbor &neighbor)
   const int mbins         = neighbor.mbins;
   const int atoms_per_bin = neighbor.atoms_per_bin;
 
-  #pragma omp target
-  // TODO: implement an actual parallel prefix sum? Probably not worth it.
-  for(int i = 1; i < mbins; i++)
-  {
-    binpos[i] += binpos[i - 1];
-  }
+  blelloch_excl_scan_target_inplace(binpos, mbins);
 
   if(copy_size < nmax)
   {

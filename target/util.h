@@ -82,6 +82,69 @@ void atomic_add(volatile T *val, T update)
 }
 #endif
 
+inline uint32_t log2_ceil(uint32_t N)
+{
+  if(N == 0)
+  {
+    return 0;
+  }
+  const uint32_t allbut1 = __builtin_clzl(1);
+  const uint32_t lz      = __builtin_clzl(N);
+  const uint32_t log2    = allbut1 - lz;
+  uint32_t       cand    = 1 << log2;
+  if(N > cand)
+  {
+    return log2 + 1;
+  }
+  return log2;
+}
+
+template <typename T>
+void blelloch_excl_scan_target_inplace(T *data, int N)
+{
+  const int levels = log2_ceil(N);
+#ifndef USE_OFFLOAD
+  #pragma omp parallel
+#endif
+  {
+#ifdef USE_OFFLOAD
+    #pragma omp target teams distribute parallel for
+#else
+    #pragma omp for
+#endif
+    for(int i = 0; i < N - 1; i += 2)
+    {
+      data[i + 1] = data[i] + data[i + 1];
+    }
+    for(int l = 1; l < levels; ++l)
+    {
+      const int stride = 1 << (l + 1);
+#ifdef USE_OFFLOAD
+      #pragma omp target teams distribute parallel for
+#else
+      #pragma omp for
+#endif
+      for(int i = stride - 1; i < N; i += stride)
+      {
+        data[i] = data[i - stride / 2] + data[i];
+      }
+    }
+    for(int l = levels - 2; l >= 0; --l)
+    {
+      const int stride = 1 << (l + 1);
+#ifdef USE_OFFLOAD
+      #pragma omp target teams distribute parallel for
+#else
+      #pragma omp for
+#endif
+      for(int i = stride + stride / 2 - 1; i < N; i += stride)
+      {
+        data[i] = data[i - stride / 2] + data[i];
+      }
+    }
+  }
+}
+
 static void die(const char *format, ...)
 {
   va_list args;
