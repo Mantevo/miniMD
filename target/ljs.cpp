@@ -383,7 +383,7 @@ int main(int argc, char **argv)
 
     if(me == 0)
     {
-      printf("ERROR: Trying to run with -sse with miniMD reference version. Use SSE variant instead. Exiting.\n");
+      fprintf(stderr, "ERROR: Trying to run with -sse with miniMD reference version. Use SSE variant instead. Exiting.\n");
     }
 
     MPI_Finalize();
