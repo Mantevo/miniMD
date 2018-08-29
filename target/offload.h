@@ -36,6 +36,24 @@
 #include <cstring>
 #include <omp.h>
 
+inline const char *get_variant_string()
+{
+#ifdef USE_OFFLOAD
+#ifdef OFFLOAD_X86
+  return "OFFLOAD_X86";
+#else // OFLOAD_X86
+#ifdef OFFLOAD_NVPTX
+  return "OFFLOAD_NVPTX";
+#else // OFFLOAD_NVPTX
+#error "Unknown variant"
+  return "";
+#endif // OFFLOAD_NVPTX
+#endif // OFFLOAD_X86
+#else  // USE_OFFLOAD
+  return "HOST";
+#endif // USE_OFFLOAD
+}
+
 inline int get_user_max_team_size()
 {
 #ifdef USE_OFFLOAD
