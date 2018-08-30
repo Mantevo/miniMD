@@ -37,48 +37,30 @@
 #include <cstdio>
 #include <cstdlib>
 
-template <int N>
-struct CASmap;
-
-template <>
-struct CASmap<4>
-{
-  typedef uint32_t CAS_type;
-};
-
-template <>
-struct CASmap<8>
-{
-  typedef uint64_t CAS_type;
-};
-
-template <typename T>
-void atomicAdd_CAS(volatile T *fptr, T x)
-{
-  typedef typename CASmap<sizeof(T)>::CAS_type CAS_t;
-  volatile CAS_t *                             ptr = ( CAS_t * )fptr;
-  CAS_t                                        expected, desired;
-  do
-  {
-    expected         = *ptr;
-    T expected_float = *fptr;
-    T desired_float  = expected_float + x;
-    desired          = *(( CAS_t * )&desired_float);
-  } while(not __sync_bool_compare_and_swap(ptr, expected, desired));
-};
+#if PRECISION == 1
+typedef uint32_t CAS_t;
+#else
+typedef uint64_t CAS_t;
+#endif
 
 #ifdef USE_OFFLOAD
-template <typename T>
-void atomic_add(volatile T *val, T update)
-{
-  atomicAdd_CAS(val, update);
+#define atomic_add(fptr, x) \
+{ \
+  volatile CAS_t *ptr = (CAS_t*) fptr; \
+  CAS_t expected, desired; \
+  do \
+  { \
+    expected = *ptr; \
+    MMD_float expected_float = *fptr; \
+    MMD_float desired_float = expected_float + x; \
+    desired = *((CAS_t*) &desired_float); \
+  } while(not __sync_bool_compare_and_swap(ptr, expected, desired)); \
 }
 #else
-template <typename T>
-void atomic_add(volatile T *val, T update)
-{
-  #pragma omp atomic
-  *val += update;
+#define atomic_add(fptr, x) \
+{ \
+  _Pragma("omp atomic") \
+  *fptr += x; \
 }
 #endif
 
