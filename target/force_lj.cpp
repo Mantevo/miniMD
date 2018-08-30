@@ -697,15 +697,9 @@ void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, i
 #endif
     }
 
-#ifdef uSE_OFFLOAD
-    atomic_add(&f[i * PAD + 0], fix);
-    atomic_add(&f[i * PAD + 1], fiy);
-    atomic_add(&f[i * PAD + 2], fiz);
-#else
     f[i * PAD + 0] += fix;
     f[i * PAD + 1] += fiy;
     f[i * PAD + 2] += fiz;
-#endif
   }
 
   // reduce private copies and clear them for the next timestep
