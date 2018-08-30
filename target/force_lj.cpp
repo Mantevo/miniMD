@@ -428,11 +428,11 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 #ifdef USE_SIMD
 #ifndef __clang__ /* clang errors on atomic inside simd */
     #pragma vector unaligned
-    #pragma omp simd reduction(+:fix, fiy, fiz, t_eng_vdwl, t_virial)
+    #pragma omp simd reduction(+:fix, fiy, fiz, w_eng_vdwl, w_virial)
 #endif
 #endif
 #ifdef USE_OFFLOAD
-     #pragma omp parallel for
+     #pragma omp parallel for reduction(+:fix, fiy, fiz, w_eng_vdwl, w_virial)
 #endif // clang-format on
     for(int k = 0; k < numneighs; k++)
     {
@@ -450,9 +450,9 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
         const MMD_float sr6   = sr2 * sr2 * sr2 * sigma6[type_ij];
         const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
 
-        atomic_add(&fix, delx * force);
-        atomic_add(&fiy, dely * force);
-        atomic_add(&fiz, delz * force);
+        fix += delx * force;
+        fiy += dely * force;
+        fiz += delz * force;
 
         if(GHOST_NEWTON || j < nlocal)
         {
@@ -465,17 +465,22 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
         {
           const MMD_float scale      = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
           const MMD_float l_eng_vdwl = scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
-          atomic_add(&w_eng_vdwl, l_eng_vdwl);
+          w_eng_vdwl += l_eng_vdwl;
           const MMD_float l_virial = scale * (delx * delx + dely * dely + delz * delz) * force;
-          atomic_add(&w_virial, l_virial);
+          w_virial += l_virial;
         }
       }
     }
 
     if(EVFLAG)
     {
+#ifdef USE_OFFLOAD
       atomic_add(&t_eng_vdwl, w_eng_vdwl);
       atomic_add(&t_virial, w_virial);
+#else
+      t_eng_vdwl += w_eng_vdwl;
+      t_virial   += w_virial;
+#endif
     }
 
     atomic_add(&f[i * PAD + 0], fix);
