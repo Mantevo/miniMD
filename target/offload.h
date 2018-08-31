@@ -35,6 +35,7 @@
 #include <cstdio>
 #include <cstring>
 #include <omp.h>
+#include "util.h"
 
 inline const char *get_variant_string()
 {
@@ -58,6 +59,15 @@ inline int get_user_max_team_size()
 {
 #ifdef USE_OFFLOAD
   return MAX_TEAM_SIZE;
+#else
+  return 0;
+#endif
+}
+
+inline int heuristic_nteam(int nlocal)
+{
+#ifdef USE_OFFLOAD
+  return 1 << log2_ceil(nlocal / get_user_max_team_size());
 #else
   return 0;
 #endif

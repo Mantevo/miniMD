@@ -778,7 +778,7 @@ void Force::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
   // loop over all neighbors of my atoms
   // store force on atom i
 #ifdef USE_OFFLOAD
-  #pragma omp target teams map(tofrom:t_eng_vdwl,t_virial) num_teams(2048) thread_limit(MAX_TEAM_SIZE)
+  #pragma omp target teams map(tofrom:t_eng_vdwl,t_virial) num_teams(heuristic_nteam(nlocal)) thread_limit(MAX_TEAM_SIZE)
 #endif
   {
 #ifdef USE_OFFLOAD

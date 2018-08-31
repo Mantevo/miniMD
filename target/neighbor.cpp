@@ -135,7 +135,7 @@ void Neighbor::build(Atom &atom)
     resize            = 0;
 
 #ifdef USE_OFFLOAD
-    #pragma omp target teams distribute parallel for map(tofrom:resize, new_maxneighs) num_teams(2048) thread_limit(64)
+    #pragma omp target teams distribute parallel for map(tofrom:resize, new_maxneighs) num_teams(heuristic_nteam(atom.nlocal)) thread_limit(64)
 #else
     #pragma omp parallel for
 #endif

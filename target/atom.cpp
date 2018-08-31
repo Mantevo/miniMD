@@ -501,7 +501,7 @@ void Atom::sort(Neighbor &neighbor)
   int *      old_type = type;
 
 #ifdef USE_OFFLOAD
-  #pragma omp target teams distribute parallel for num_teams(2048) thread_limit(64)
+  #pragma omp target teams distribute parallel for num_teams(heuristic_nteam(nlocal)) thread_limit(64)
 #else
   #pragma omp parallel for
 #endif
