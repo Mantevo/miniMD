@@ -60,7 +60,7 @@ do
                     do
                         infile=./in.lj.miniMD.${size}
                         resfile=$(mktemp -t "$(basename $0).XXXX")
-                        if [ "${var}" = nvptx ]
+                        if [ "${var}" = nvptx ] && [ "${privatize}" = 1 ]
                         then
                             teams="--teams 56"
                         else
