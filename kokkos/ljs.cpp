@@ -310,8 +310,9 @@ int main(int argc, char** argv)
   args_kokkos.num_threads = num_threads;
   args_kokkos.num_numa = teams;
   args_kokkos.device_id = device;
-
   Kokkos::initialize(args_kokkos);
+  // Scope Guard
+  {
 
   Atom atom(ntypes);
   Neighbor neighbor(ntypes);
@@ -414,7 +415,7 @@ int main(int argc, char** argv)
   }
 
   if(neighbor_size < 0 && in.datafile == NULL) {
-#ifdef KOKKOS_HAVE_CUDA
+#if defined(KOKKOS_ENABLE_CUDA) || defined(KOKKOS_ENABLE_ROCM)
     MMD_float neighscale = 0.6;
 #else
     MMD_float neighscale = 5.0 / 6.0;
@@ -479,7 +480,7 @@ int main(int argc, char** argv)
     fprintf(stdout, "# " VARIANT_STRING " output ...\n");
     fprintf(stdout, "# Run Settings: \n");
     fprintf(stdout, "\t# MPI processes: %i\n", comm.nprocs);
-    fprintf(stdout, "\t# Host Threads: %i\n", Kokkos::HostSpace::execution_space::thread_pool_size());
+    fprintf(stdout, "\t# Host Threads: %i\n", Kokkos::HostSpace::execution_space::concurrency());
     fprintf(stdout, "\t# Inputfile: %s\n", input_file == 0 ? "in.lj.miniMD" : input_file);
     fprintf(stdout, "\t# Datafile: %s\n", in.datafile ? in.datafile : "None");
     fprintf(stdout, "# Physics Settings: \n");
@@ -561,6 +562,9 @@ int main(int argc, char** argv)
   delete force;
 
   MPI_Barrier(MPI_COMM_WORLD);
+  }
+  // End Scope Guard
+
   Kokkos::finalize();
   MPI_Finalize();
   return 0;

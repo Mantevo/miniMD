@@ -295,14 +295,14 @@ void Comm::communicate(Atom &atom)
        if self, set recv buffer to send buffer */
 
       if(sizeof(MMD_float) == 4) {
-        MPI_Irecv(buf_recv.ptr_on_device(), comm_recv_size[iswap], MPI_FLOAT,
+        MPI_Irecv(buf_recv.data(), comm_recv_size[iswap], MPI_FLOAT,
         recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send.ptr_on_device(), comm_send_size[iswap], MPI_FLOAT,
+        MPI_Send(buf_send.data(), comm_send_size[iswap], MPI_FLOAT,
         sendproc[iswap], 0, MPI_COMM_WORLD);
       } else {
-        MPI_Irecv(buf_recv.ptr_on_device(), comm_recv_size[iswap], MPI_DOUBLE,
+        MPI_Irecv(buf_recv.data(), comm_recv_size[iswap], MPI_DOUBLE,
         recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send.ptr_on_device(), comm_send_size[iswap], MPI_DOUBLE,
+        MPI_Send(buf_send.data(), comm_send_size[iswap], MPI_DOUBLE,
         sendproc[iswap], 0, MPI_COMM_WORLD);
       }
 
@@ -341,14 +341,14 @@ void Comm::reverse_communicate(Atom &atom)
     if(sendproc[iswap] != me) {
 
       if(sizeof(MMD_float) == 4) {
-        MPI_Irecv(buf_recv.ptr_on_device(), reverse_recv_size[iswap], MPI_FLOAT,
+        MPI_Irecv(buf_recv.data(), reverse_recv_size[iswap], MPI_FLOAT,
         sendproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send.ptr_on_device(), reverse_send_size[iswap], MPI_FLOAT,
+        MPI_Send(buf_send.data(), reverse_send_size[iswap], MPI_FLOAT,
         recvproc[iswap], 0, MPI_COMM_WORLD);
       } else {
-        MPI_Irecv(buf_recv.ptr_on_device(), reverse_recv_size[iswap], MPI_DOUBLE,
+        MPI_Irecv(buf_recv.data(), reverse_recv_size[iswap], MPI_DOUBLE,
         sendproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send.ptr_on_device(), reverse_send_size[iswap], MPI_DOUBLE,
+        MPI_Send(buf_send.data(), reverse_send_size[iswap], MPI_DOUBLE,
         recvproc[iswap], 0, MPI_COMM_WORLD);
       }
       MPI_Wait(&request, &status);
@@ -411,13 +411,13 @@ void Comm::exchange(Atom &atom_)
 
     nlocal = atom.nlocal;
 
-    if (exc_sendflag.dimension_0()<nlocal) {
+    if (exc_sendflag.extent(0)<nlocal) {
       Kokkos::resize(exc_sendflag,nlocal);
     }
 
-    count.h_view(0) = exc_sendlist.dimension_0();
+    count.h_view(0) = exc_sendlist.extent(0);
 
-    while (count.h_view(0)>=exc_sendlist.dimension_0()) {
+    while (count.h_view(0)>=exc_sendlist.extent(0)) {
       count.h_view(0) = 0;
       count.modify<HostType>();
       count.sync<DeviceType>();
@@ -427,11 +427,11 @@ void Comm::exchange(Atom &atom_)
 
       count.modify<DeviceType>();
       count.sync<HostType>();
-      if ((count.h_view(0)>=exc_sendlist.dimension_0()) ||
-          (count.h_view(0)>=exc_copylist.dimension_0()) ) {
+      if ((count.h_view(0)>=exc_sendlist.extent(0)) ||
+          (count.h_view(0)>=exc_copylist.extent(0)) ) {
         Kokkos::resize(exc_sendlist,(count.h_view(0)+1)*1.1);
         Kokkos::resize(exc_copylist,(count.h_view(0)+1)*1.1);
-        count.h_view(0)=exc_sendlist.dimension_0();
+        count.h_view(0)=exc_sendlist.extent(0);
       }
       if (count.h_view(0)*7>=maxsend)
         growsend(count.h_view(0));
@@ -478,26 +478,26 @@ void Comm::exchange(Atom &atom_)
       if(nrecv > maxrecv) growrecv(nrecv);
 
       if(sizeof(MMD_float) == 4) {
-        MPI_Irecv(buf_recv.ptr_on_device(), nrecv1, MPI_FLOAT, procneigh[idim][1], 0,
+        MPI_Irecv(buf_recv.data(), nrecv1, MPI_FLOAT, procneigh[idim][1], 0,
                   MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send.ptr_on_device(), nsend, MPI_FLOAT, procneigh[idim][0], 0, MPI_COMM_WORLD);
+        MPI_Send(buf_send.data(), nsend, MPI_FLOAT, procneigh[idim][0], 0, MPI_COMM_WORLD);
       } else {
-        MPI_Irecv(buf_recv.ptr_on_device(), nrecv1, MPI_DOUBLE, procneigh[idim][1], 0,
+        MPI_Irecv(buf_recv.data(), nrecv1, MPI_DOUBLE, procneigh[idim][1], 0,
                   MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send.ptr_on_device(), nsend, MPI_DOUBLE, procneigh[idim][0], 0, MPI_COMM_WORLD);
+        MPI_Send(buf_send.data(), nsend, MPI_DOUBLE, procneigh[idim][0], 0, MPI_COMM_WORLD);
       }
 
       MPI_Wait(&request, &status);
 
       if(procgrid[idim] > 2) {
         if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(buf_recv.ptr_on_device()+nrecv1, nrecv2, MPI_FLOAT, procneigh[idim][0], 0,
+          MPI_Irecv(buf_recv.data()+nrecv1, nrecv2, MPI_FLOAT, procneigh[idim][0], 0,
                     MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send.ptr_on_device(), nsend, MPI_FLOAT, procneigh[idim][1], 0, MPI_COMM_WORLD);
+          MPI_Send(buf_send.data(), nsend, MPI_FLOAT, procneigh[idim][1], 0, MPI_COMM_WORLD);
         } else {
-          MPI_Irecv(buf_recv.ptr_on_device()+nrecv1, nrecv2, MPI_DOUBLE, procneigh[idim][0], 0,
+          MPI_Irecv(buf_recv.data()+nrecv1, nrecv2, MPI_DOUBLE, procneigh[idim][0], 0,
                     MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send.ptr_on_device(), nsend, MPI_DOUBLE, procneigh[idim][1], 0, MPI_COMM_WORLD);
+          MPI_Send(buf_send.data(), nsend, MPI_DOUBLE, procneigh[idim][1], 0, MPI_COMM_WORLD);
         }
 
         MPI_Wait(&request, &status);
@@ -535,7 +535,7 @@ KOKKOS_INLINE_FUNCTION
 void Comm::operator() (TagExchangeSendlist, const int& i) const {
   if (x(i,idim) < lo || x(i,idim) >= hi) {
     const int mysend=Kokkos::atomic_fetch_add(&count.d_view(0),1);
-    if(mysend<exc_sendlist.dimension_0()) {
+    if(mysend<exc_sendlist.extent(0)) {
       exc_sendlist(mysend) = i;
       exc_sendflag(i) = 1;
     }
@@ -633,7 +633,7 @@ void Comm::borders(Atom &atom_)
       count.sync<HostType>();
 
       nsend = count.h_view(0);
-      if(nsend > exc_sendlist.dimension_0()) {
+      if(nsend > exc_sendlist.extent(0)) {
         Kokkos::resize(exc_sendlist , nsend);
 
         growlist(iswap, nsend);
@@ -664,14 +664,14 @@ void Comm::borders(Atom &atom_)
           if(nrecv * atom.border_size > maxrecv) growrecv(nrecv * atom.border_size);
 
           if(sizeof(MMD_float) == 4) {
-            MPI_Irecv(buf_recv.ptr_on_device(), nrecv * atom.border_size, MPI_FLOAT,
+            MPI_Irecv(buf_recv.data(), nrecv * atom.border_size, MPI_FLOAT,
                       recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-            MPI_Send(buf_send.ptr_on_device(), nsend * atom.border_size, MPI_FLOAT,
+            MPI_Send(buf_send.data(), nsend * atom.border_size, MPI_FLOAT,
                      sendproc[iswap], 0, MPI_COMM_WORLD);
           } else {
-            MPI_Irecv(buf_recv.ptr_on_device(), nrecv * atom.border_size, MPI_DOUBLE,
+            MPI_Irecv(buf_recv.data(), nrecv * atom.border_size, MPI_DOUBLE,
                       recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-            MPI_Send(buf_send.ptr_on_device(), nsend * atom.border_size, MPI_DOUBLE,
+            MPI_Send(buf_send.data(), nsend * atom.border_size, MPI_DOUBLE,
                      sendproc[iswap], 0, MPI_COMM_WORLD);
           }
 
@@ -729,7 +729,7 @@ KOKKOS_INLINE_FUNCTION
 void Comm::operator() (TagBorderSendlist, const int& i) const {
   if(x(i,idim) >= lo && x(i,idim) <= hi) {
     const int nsend = (send_count(0)+=1)-1;
-    if(nsend < exc_sendlist.dimension_0()) {
+    if(nsend < exc_sendlist.extent(0)) {
       exc_sendlist[nsend] = i;
     }
   }
@@ -767,8 +767,8 @@ void Comm::growrecv(int n)
 void Comm::growlist(int iswap, int n)
 {
   if(n<=maxsendlist[iswap]) return;
-  int maxswap = sendlist.dimension_0();
-  Kokkos::resize(sendlist,sendlist.dimension_0(),BUFFACTOR * n + BUFEXTRA);
+  int maxswap = sendlist.extent(0);
+  Kokkos::resize(sendlist,sendlist.extent(0),BUFFACTOR * n + BUFEXTRA);
   for(int iswaps = 0; iswaps < maxswap; iswaps++) {
     maxsendlist[iswaps] = static_cast<int>(BUFFACTOR * n);
   }

@@ -66,7 +66,7 @@ ForceEAM::ForceEAM(int ntypes_)
 
   style = FORCEEAM;
 
-  nthreads = Kokkos::HostSpace::execution_space::thread_pool_size();
+  nthreads = Kokkos::HostSpace::execution_space::concurrency();
 }
 
 /* ----------------------------------------------------------------------
@@ -193,7 +193,7 @@ void ForceEAM::operator() (TagHalfNeighInitial , const int& i ) const {
       rhoi += d_rho;
 
       if(j < nlocal) {
-        #ifdef KOKKOS_HAVE_SERIAL
+        #ifdef KOKKOS_ENABLE_SERIAL
         if(Kokkos::Impl::is_same<Kokkos::DefaultExecutionSpace,Kokkos::Serial>::value)
           rho(j) += d_rho;
         else
@@ -203,7 +203,7 @@ void ForceEAM::operator() (TagHalfNeighInitial , const int& i ) const {
     }
   }
 
-  #ifdef KOKKOS_HAVE_SERIAL
+  #ifdef KOKKOS_ENABLE_SERIAL
   if(Kokkos::Impl::is_same<Kokkos::DefaultExecutionSpace,Kokkos::Serial>::value)
     rho(i) += rhoi;
   else
@@ -310,7 +310,7 @@ void ForceEAM::operator() (TagHalfNeighFinal<EVFLAG> , const int& i, eng_virial_
       fz += delz * fpair;
 
       if(j < nlocal) {
-        #ifdef KOKKOS_HAVE_SERIAL
+        #ifdef KOKKOS_ENABLE_SERIAL
         if(Kokkos::Impl::is_same<Kokkos::DefaultExecutionSpace,Kokkos::Serial>::value) {
           f(j,0) -= delx * fpair;
           f(j,1) -= dely * fpair;
@@ -333,7 +333,7 @@ void ForceEAM::operator() (TagHalfNeighFinal<EVFLAG> , const int& i, eng_virial_
     }
   }
 
-  #ifdef KOKKOS_HAVE_SERIAL
+  #ifdef KOKKOS_ENABLE_SERIAL
   if(Kokkos::Impl::is_same<Kokkos::DefaultExecutionSpace,Kokkos::Serial>::value) {
     f(i,0) += fx;
     f(i,1) += fy;
@@ -950,14 +950,14 @@ void ForceEAM::communicate(Atom &atom, Comm &comm)
 
     if(comm.sendproc[iswap] != me) {
       if(sizeof(MMD_float) == 4) {
-        MPI_Irecv(comm.buf_recv.ptr_on_device(), comm.comm_recv_size[iswap], MPI_FLOAT,
+        MPI_Irecv(comm.buf_recv.data(), comm.comm_recv_size[iswap], MPI_FLOAT,
                   comm.recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(comm.buf_send.ptr_on_device(), comm.comm_send_size[iswap], MPI_FLOAT,
+        MPI_Send(comm.buf_send.data(), comm.comm_send_size[iswap], MPI_FLOAT,
                  comm.sendproc[iswap], 0, MPI_COMM_WORLD);
       } else {
-        MPI_Irecv(comm.buf_recv.ptr_on_device(), comm.comm_recv_size[iswap], MPI_DOUBLE,
+        MPI_Irecv(comm.buf_recv.data(), comm.comm_recv_size[iswap], MPI_DOUBLE,
                   comm.recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(comm.buf_send.ptr_on_device(), comm.comm_send_size[iswap], MPI_DOUBLE,
+        MPI_Send(comm.buf_send.data(), comm.comm_send_size[iswap], MPI_DOUBLE,
                  comm.sendproc[iswap], 0, MPI_COMM_WORLD);
       }
 

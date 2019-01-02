@@ -77,7 +77,7 @@ ForceLJ::ForceLJ(int ntypes_)
   Kokkos::deep_copy(d_sigma6,h_sigma6);
   Kokkos::deep_copy(d_sigma,h_sigma);
 
-  nthreads = Kokkos::HostSpace::execution_space::thread_pool_size();
+  nthreads = Kokkos::HostSpace::execution_space::concurrency();
 }
 
 ForceLJ::~ForceLJ() {}
@@ -103,7 +103,7 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
   eng_vdwl = 0;
   virial = 0;
 
-#ifdef KOKKOS_HAVE_CUDA
+#if defined(KOKKOS_ENABLE_CUDA) || defined(KOKKOS_ENABEL_ROCM)
   const int host_device = 0;
 #else
   const int host_device = 1;
