@@ -80,6 +80,8 @@ class Force
     x_rnd_view_type x;
     x_view_type f;
     x_atomic_view_type f_a;
+    x_scatter_view_type f_scatter;
+
     int_1d_rnd_view_type type;
 
     MMD_int me;

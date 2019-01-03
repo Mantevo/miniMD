@@ -154,7 +154,9 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 
   // loop over all neighbors of my atoms
   // store force on both atoms i and j
-
+  if(f_scatter.subview().extent(0) != f.extent(0))
+    f_scatter = Kokkos::Experimental::create_scatter_view(f);
+  f_scatter.reset();
   if(ntypes>MAX_STACK_TYPES) {
     if(EVFLAG)
       Kokkos::parallel_reduce(Kokkos::RangePolicy<TagComputeHalfNeighThread<1,GHOST_NEWTON,0> >(0,nlocal), *this , t_eng_virial);
@@ -168,6 +170,7 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
   }
   eng_vdwl += t_eng_virial.eng;
   virial += t_eng_virial.virial;
+  f_scatter.contribute_into(f);
 }
 
 //Thread-safe variant of force kernel using full-neighborlists
@@ -223,6 +226,7 @@ void ForceLJ::operator() (TagComputeHalfNeighThread<EVFLAG,GHOST_NEWTON,STACK_PA
   MMD_float fiy = 0.0;
   MMD_float fiz = 0.0;
 
+  const auto f_tmp = f_scatter.access();
   for(int k = 0; k < numneighs; k++) {
     const MMD_int j = neighbors(i,k);
     const MMD_float delx = xtmp - x(j,0);
@@ -242,9 +246,9 @@ void ForceLJ::operator() (TagComputeHalfNeighThread<EVFLAG,GHOST_NEWTON,STACK_PA
       fiz += delz * force;
 
       if(GHOST_NEWTON || j < nlocal) {
-        f_a(j,0) -= delx * force;
-        f_a(j,1) -= dely * force;
-        f_a(j,2) -= delz * force;
+        f_tmp(j,0) -= delx * force;
+        f_tmp(j,1) -= dely * force;
+        f_tmp(j,2) -= delz * force;
       }
 
       if(EVFLAG) {
@@ -254,10 +258,9 @@ void ForceLJ::operator() (TagComputeHalfNeighThread<EVFLAG,GHOST_NEWTON,STACK_PA
       }
     }
   }
-
-  f_a(i,0) += fix;
-  f_a(i,1) += fiy;
-  f_a(i,2) += fiz;
+  f_tmp(i,0) += fix;
+  f_tmp(i,1) += fiy;
+  f_tmp(i,2) += fiz;
 }
 
 template<int EVFLAG, int STACK_PARAMS>
