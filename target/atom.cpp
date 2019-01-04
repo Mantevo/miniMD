@@ -49,7 +49,7 @@ Atom::Atom(int ntypes_)
   nmax      = 0;
   copy_size = 0;
 
-  x = v = f = xold = x_copy = v_copy = f_private = NULL;
+  x = v = f = xold = x_copy = v_copy = NULL;
   type = type_copy = NULL;
   comm_size        = 3;
   reverse_size     = 3;
@@ -69,10 +69,6 @@ Atom::~Atom()
     mmd_free(f);
     mmd_free(xold);
     mmd_free(type);
-    if(privatize)
-    {
-      mmd_free(f_private);
-    }
   }
 }
 
@@ -94,16 +90,6 @@ void Atom::growarray_sync()
     #pragma omp target update from(f[0:N])
     #pragma omp target update from(type[0:nmax])
     #pragma omp target update from(xold[0:N])
-    if(privatize)
-    {
-#ifdef USE_OFFLOAD
-      int        ncopies   = threads->teams;
-#else
-      int        ncopies   = threads->omp_num_threads;
-#endif
-      MMD_float *f_private = this->f_private;
-      #pragma omp target update from(f_private[0:ncopies * N])
-    }
   }
 #endif
   growarray();
@@ -123,16 +109,6 @@ void Atom::growarray_sync()
     #pragma omp target update to(f[0:N])
     #pragma omp target update to(type[0:nmax])
     #pragma omp target update to(xold[0:N])
-    if(privatize)
-    {
-#ifdef USE_OFFLOAD
-      int        ncopies   = threads->teams;
-#else
-      int        ncopies   = threads->omp_num_threads;
-#endif
-      MMD_float *f_private = this->f_private;
-      #pragma omp target update to(f_private[0:ncopies * N])
-    }
   }
 #endif
 }
@@ -151,20 +127,6 @@ void Atom::growarray()
   if(x == NULL || v == NULL || f == NULL || xold == NULL)
   {
     printf("ERROR: No memory for atoms\n");
-  }
-
-  if(privatize)
-  {
-#ifdef USE_OFFLOAD
-    int ncopies = threads->teams;
-#else
-    int ncopies = threads->omp_num_threads;
-#endif
-    f_private   = ( MMD_float * )mmd_replace_alloc(f_private, ncopies * nmax * PAD * sizeof(MMD_float));
-    if(f_private == NULL)
-    {
-      printf("ERROR: No memory for atoms\n");
-    }
   }
 }
 

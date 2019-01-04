@@ -92,9 +92,6 @@ public:
 
   void sort(Neighbor &neighbor);
 
-  int        privatize;
-  MMD_float *f_private;
-
 private:
   MMD_float *x_copy;
   MMD_float *v_copy;

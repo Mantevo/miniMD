@@ -103,14 +103,7 @@ void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
       {
         if(threads->omp_num_threads > 1)
         {
-          if(atom.privatize)
-          {
-            return compute_halfneigh_threaded_private<1, 1>(atom, neighbor, me);
-          }
-          else
-          {
-            return compute_halfneigh_threaded<1, 1>(atom, neighbor, me);
-          }
+          return compute_halfneigh_threaded<1, 1>(atom, neighbor, me);
         }
         else
         {
@@ -121,14 +114,7 @@ void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
       {
         if(threads->omp_num_threads > 1)
         {
-          if(atom.privatize)
-          {
-            return compute_halfneigh_threaded_private<1, 0>(atom, neighbor, me);
-          }
-          else
-          {
-            return compute_halfneigh_threaded<1, 0>(atom, neighbor, me);
-          }
+          return compute_halfneigh_threaded<1, 0>(atom, neighbor, me);
         }
         else
         {
@@ -155,14 +141,7 @@ void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
       {
         if(threads->omp_num_threads > 1)
         {
-          if(atom.privatize)
-          {
-            return compute_halfneigh_threaded_private<0, 1>(atom, neighbor, me);
-          }
-          else
-          {
-            return compute_halfneigh_threaded<0, 1>(atom, neighbor, me);
-          }
+          return compute_halfneigh_threaded<0, 1>(atom, neighbor, me);
         }
         else
         {
@@ -173,14 +152,7 @@ void Force::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
       {
         if(threads->omp_num_threads > 1)
         {
-          if(atom.privatize)
-          {
-            return compute_halfneigh_threaded_private<0, 0>(atom, neighbor, me);
-          }
-          else
-          {
-            return compute_halfneigh_threaded<0, 0>(atom, neighbor, me);
-          }
+          return compute_halfneigh_threaded<0, 0>(atom, neighbor, me);
         }
         else
         {
@@ -487,260 +459,6 @@ void Force::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
     atomic_add(&f[i * PAD + 1], fiy);
     atomic_add(&f[i * PAD + 2], fiz);
   }
-
-  eng_vdwl += t_eng_vdwl;
-  virial += t_virial;
-}
-
-//#define USE_SCATTER_VARIANT
-// clang-format off
-__attribute__((noinline)) // clang-format on
-void private_force_update(MMD_float* f, const int32_t j, const MMD_float x, const MMD_float y, const MMD_float z)
-{
-  f[j * PAD + 0] -= x;
-  f[j * PAD + 1] -= y;
-  f[j * PAD + 2] -= z;
-}
-
-#ifdef __INTEL_COMPILER
-#if(PAD == 4)
-#include <immintrin.h>
-// clang-format off
-__declspec(vector_variant(implements(private_force_update(MMD_float* f, const int32_t j, const MMD_float x, const MMD_float y, const MMD_float z)),
-                          uniform(f),
-                          vectorlength(16),
-                          mask,
-                          processor(knl))) // clang-format on
-    void _mm512_private_force_update_ps(MMD_float *f, const __m512i j, const __m512 x, const __m512 y, const __m512 z, __mmask16 mask)
-{
-  // respect the mask
-  __m512 mx = _mm512_mask_blend_ps(mask, _mm512_setzero_ps(), x);
-  __m512 my = _mm512_mask_blend_ps(mask, _mm512_setzero_ps(), y);
-  __m512 mz = _mm512_mask_blend_ps(mask, _mm512_setzero_ps(), z);
-
-  // transpose 3x16 => 16x4 (w/ undefined padding)
-  __m512 out[4];
-#if 0
-    __m512 xy1256 = _mm512_shuffle_ps(mx, my,                    _MM_SHUFFLE(1, 0, 1, 0));
-    __m512 xy3478 = _mm512_shuffle_ps(mx, my,                    _MM_SHUFFLE(3, 2, 3, 2));
-    __m512 z01256 = _mm512_shuffle_ps(mz, _mm512_undefined_ps(), _MM_SHUFFLE(1, 0, 1, 0));
-    __m512 z03478 = _mm512_shuffle_ps(mz, _mm512_undefined_ps(), _MM_SHUFFLE(3, 2, 3, 2));
-    out[0] = _mm512_shuffle_ps(xy1256, z01256, _MM_SHUFFLE(2, 0, 2, 0));
-    out[1] = _mm512_shuffle_ps(xy1256, z01256, _MM_SHUFFLE(3, 1, 3, 1));
-    out[2] = _mm512_shuffle_ps(xy3478, z03478, _MM_SHUFFLE(2, 0, 2, 0));
-    out[3] = _mm512_shuffle_ps(xy3478, z03478, _MM_SHUFFLE(3, 1, 3, 1));
-#else
-  __m512 xy1256 = _mm512_unpacklo_ps(mx, my);
-  __m512 xy3478 = _mm512_unpackhi_ps(mx, my);
-  __m512 z01256 = _mm512_unpacklo_ps(mz, _mm512_undefined_ps());
-  __m512 z03478 = _mm512_unpackhi_ps(mz, _mm512_undefined_ps());
-  out[0]        = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xy1256), _mm512_castps_pd(z01256)));
-  out[1]        = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xy1256), _mm512_castps_pd(z01256)));
-  out[2]        = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xy3478), _mm512_castps_pd(z03478)));
-  out[3]        = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xy3478), _mm512_castps_pd(z03478)));
-#endif
-
-  // gather/add/scatter the atoms in groups of 4
-  __declspec(aligned(64)) int32_t js[16];
-  _mm512_store_epi32(js, _mm512_mullo_epi32(j, _mm512_set1_epi32(4)));
-  for(int g = 0; g < 4; ++g)
-  {
-    __m512 fj;
-    fj = _mm512_castps128_ps512(_mm_load_ps(f + js[g + 0]));
-    fj = _mm512_mask_broadcast_f32x4(fj, 0x00F0, _mm_load_ps(f + js[g + 4]));
-    fj = _mm512_mask_broadcast_f32x4(fj, 0x0F00, _mm_load_ps(f + js[g + 8]));
-    fj = _mm512_mask_broadcast_f32x4(fj, 0xF000, _mm_load_ps(f + js[g + 12]));
-    fj = _mm512_sub_ps(fj, out[g]);
-    _mm512_mask_compressstoreu_ps(f + js[g + 0], 0x000F, fj);
-    _mm512_mask_compressstoreu_ps(f + js[g + 4], 0x00F0, fj);
-    _mm512_mask_compressstoreu_ps(f + js[g + 8], 0x0F00, fj);
-    _mm512_mask_compressstoreu_ps(f + js[g + 12], 0xF000, fj);
-  }
-}
-#endif
-#endif
-
-// optimised version of compute
-//  -MPI + OpenMP (privatization for fj update)
-//  -use temporary variable for summing up fi
-//  -enables vectorization by:
-//    -getting rid of 2d pointers
-//    -use pragma omp simd to force vectorization of inner loop
-//    -use private force arrays for each thread
-template <int EVFLAG, int GHOST_NEWTON>
-void Force::compute_halfneigh_threaded_private(Atom &atom, Neighbor &neighbor, int me)
-{
-  MMD_float t_eng_vdwl = 0;
-  MMD_float t_virial   = 0;
-
-#ifdef USE_OFFLOAD
-  const int ncopies = threads->teams;
-#else
-  const int ncopies = threads->omp_num_threads;
-#endif
-
-  const int              nlocal    = atom.nlocal;
-  const int              nall      = atom.nlocal + atom.nghost;
-  const MMD_float *const x         = atom.x;
-  MMD_float *const       f_private = atom.f_private;
-  const int *const       type      = atom.type;
-
-  const int  maxneighs = neighbor.maxneighs;
-  const int *neighbors = neighbor.neighbors;
-  const int *numneigh  = neighbor.numneigh;
-#ifdef USE_OFFLOAD
-  const MMD_float *cutforcesq = this->cutforcesq;
-  const MMD_float *epsilon    = this->epsilon;
-  const MMD_float *sigma6     = this->sigma6;
-  const int        ntypes     = this->ntypes;
-#endif
-
-  // TODO: This shouldn't strictly be necessary
-  #pragma omp target teams distribute parallel for
-  for (int i = 0; i < ncopies * nall * PAD; ++i)
-  {
-    f_private[i] = 0.0f;
-  }
-
-#ifdef USE_OFFLOAD
-  #pragma omp target teams distribute map(tofrom:t_eng_vdwl,t_virial) num_teams(threads->teams) thread_limit(MAX_TEAM_SIZE)
-#else
-  #pragma omp parallel for reduction(+ : t_eng_vdwl, t_virial)
-#endif
-  for(int i = 0; i < nlocal; i++)
-  {
-#ifdef USE_OFFLOAD
-    MMD_float *const f         = &f_private[omp_get_team_num() * nall * PAD]; // TODO: Hoist this
-#else
-    MMD_float *const f         = &f_private[omp_get_thread_num() * nall * PAD]; // TODO: Hoist this
-#endif
-    const int *const neighs    = &neighbors[i * maxneighs];
-    const int        numneighs = numneigh[i];
-    const MMD_float  xtmp      = x[i * PAD + 0];
-    const MMD_float  ytmp      = x[i * PAD + 1];
-    const MMD_float  ztmp      = x[i * PAD + 2];
-    const int        type_i    = type[i];
-    MMD_float        fix       = MMD_float(0.0);
-    MMD_float        fiy       = MMD_float(0.0);
-    MMD_float        fiz       = MMD_float(0.0);
-
-    MMD_float w_virial   = MMD_float(0.0);
-    MMD_float w_eng_vdwl = MMD_float(0.0);
-
-#ifdef USE_OFFLOAD
-    #pragma omp parallel for num_threads(MAX_TEAM_SIZE) reduction(+:fix, fiy, fiz, w_eng_vdwl, w_virial)
-#else
-#ifdef USE_SIMD
-    #pragma vector unaligned
-    #pragma omp simd reduction(+ : fix, fiy, fiz, w_eng_vdwl, w_virial)
-#endif
-#endif
-    for(int k = 0; k < numneighs; k++)
-    {
-      const int       j       = neighs[k];
-      const MMD_float delx    = xtmp - x[j * PAD + 0];
-      const MMD_float dely    = ytmp - x[j * PAD + 1];
-      const MMD_float delz    = ztmp - x[j * PAD + 2];
-      const int       type_j  = type[j];
-      const MMD_float rsq     = delx * delx + dely * dely + delz * delz;
-      const int       type_ij = type_i * ntypes + type_j;
-
-      if(rsq < cutforcesq[type_ij])
-      {
-        const MMD_float sr2   = MMD_float(1.0) / rsq;
-        const MMD_float sr6   = sr2 * sr2 * sr2 * sigma6[type_ij];
-        const MMD_float force = MMD_float(48.0) * sr6 * (sr6 - MMD_float(0.5)) * sr2 * epsilon[type_ij];
-
-        fix += delx * force;
-        fiy += dely * force;
-        fiz += delz * force;
-
-#ifndef USE_SCATTER_VARIANT
-        if(GHOST_NEWTON || j < nlocal)
-        {
-#ifdef USE_OFFLOAD
-          atomic_add(&f[j * PAD + 0], -delx * force);
-          atomic_add(&f[j * PAD + 1], -dely * force);
-          atomic_add(&f[j * PAD + 2], -delz * force);
-#else
-          f[j * PAD + 0] -= delx * force;
-          f[j * PAD + 1] -= dely * force;
-          f[j * PAD + 2] -= delz * force;
-#endif
-        }
-#else
-        if(GHOST_NEWTON || j < nlocal)
-        {
-          private_force_update(f, j, delx * force, dely * force, delz * force);
-        }
-#endif
-
-        if(EVFLAG)
-        {
-          const MMD_float scale = (GHOST_NEWTON || j < nlocal) ? MMD_float(1.0) : MMD_float(0.5);
-          const MMD_float l_eng_vdwl = scale * (MMD_float(4.0) * sr6 * (sr6 - MMD_float(1.0))) * epsilon[type_ij];
-          w_eng_vdwl += l_eng_vdwl;
-          const MMD_float l_virial = scale * (delx * delx + dely * dely + delz * delz) * force;
-          w_virial += l_virial;
-        }
-      }
-    }
-
-    if(EVFLAG)
-    {
-#ifdef USE_OFFLOAD
-      atomic_add(&t_eng_vdwl, w_eng_vdwl);
-      atomic_add(&t_virial, w_virial);
-#else
-      t_eng_vdwl += w_eng_vdwl;
-      t_virial   += w_virial;
-#endif
-    }
-
-    f[i * PAD + 0] += fix;
-    f[i * PAD + 1] += fiy;
-    f[i * PAD + 2] += fiz;
-  }
-
-  // reduce private copies and clear them for the next timestep
-  // likely sub-optimal: makes no assumptions about which threads touch which atoms
-  // iterates through array(s) in cache-line-sized chunks on host, naively on device
-
-  MMD_float *reduction_out = ( MMD_float * )atom.f;
-#ifdef USE_OFFLOAD
-  #pragma omp target teams distribute parallel for
-  for(int i = 0; i < nall * PAD; ++i)
-  {
-    MMD_float *reduction_in = ( MMD_float *)&f_private[i];
-    MMD_float tmp           = MMD_float(0.0);
-    for(int t = 0; t < ncopies; ++t)
-    {
-      tmp += reduction_in[t * nall * PAD];
-      reduction_in[t * nall * PAD] = MMD_float(0.0);
-    }
-    reduction_out[i] = tmp;
-  }
-#else
-  #pragma omp parallel for
-  for(int chunk_offset = 0; chunk_offset < nall * PAD; chunk_offset += CACHELINE_SIZE / sizeof(MMD_float))
-  {
-    // don't worry about the last chunk; arrays are padded at the end
-    #pragma vector aligned
-    #pragma omp simd
-    for(int c = 0; c < CACHELINE_SIZE / sizeof(MMD_float); ++c)
-    {
-      MMD_float *reduction_in = ( MMD_float * )&f_private[chunk_offset + c];
-      MMD_float  tmp          = MMD_float(0.0);
-      #pragma unroll(2)
-      for(int t = 0; t < ncopies; ++t)
-      {
-        tmp += reduction_in[t * nall * PAD];
-        reduction_in[t * nall * PAD] = MMD_float(0.0);
-      }
-      reduction_out[chunk_offset + c] = tmp;
-    }
-  }
-#endif
 
   eng_vdwl += t_eng_vdwl;
   virial += t_virial;

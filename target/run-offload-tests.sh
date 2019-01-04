@@ -54,56 +54,47 @@ do
         do
             for ghost_neighbor in 0 1
             do
-                for privatize in 0 1
+                for size in ${sizes}
                 do
-                    for size in ${sizes}
-                    do
-                        infile=./in.lj.miniMD.${size}
-                        resfile=$(mktemp -t "$(basename $0).XXXX")
-                        if [ "${var}" = nvptx ] && [ "${privatize}" = 1 ]
+                    infile=./in.lj.miniMD.${size}
+                    resfile=$(mktemp -t "$(basename $0).XXXX")
+                    if [[ $# -eq 1 ]]
+                    then
+                        perffile=${errfile}
+                    fi
+                    printf "Running taskset -c 0-$((nthreads-1)) ./miniMD_clang -t ${nthreads} --half_neigh ${halfneigh} --ghost_neighbor ${ghost_neighbor} -i ${infile}"
+                    run_count=$((run_count + 1))
+                    taskset -c 0-$((nthreads-1)) ./miniMD_clang -t ${nthreads} --half_neigh ${halfneigh} --ghost_neighbor ${ghost_neighbor} -i ${infile} --check-output ${resfile} 2>> ${perffile} > ${outfile}
+                    if [ $? -ne 0 ]
+                    then
+                        printf "  ${RED}RUN FAILED${NORMAL}!\n"
+                    else
+                        if [ "${size}" -eq 32 ]
                         then
-                            teams="--teams 56"
-                        else
-                            teams=""
-                        fi
-                        if [[ $# -eq 1 ]]
-                        then
-                            perffile=${errfile}
-                        fi
-                        printf "Running taskset -c 0-$((nthreads-1)) ./miniMD_clang -t ${nthreads} ${teams} --half_neigh ${halfneigh} --ghost_neighbor ${ghost_neighbor} --privatize ${privatize} -i ${infile}"
-                        run_count=$((run_count + 1))
-                        taskset -c 0-$((nthreads-1)) ./miniMD_clang -t ${nthreads} ${teams} --half_neigh ${halfneigh}  --ghost_neighbor ${ghost_neighbor} --privatize ${privatize} -i ${infile} --check-output ${resfile} 2>> ${perffile} > ${outfile}
-                        if [ $? -ne 0 ]
-                        then
-                            printf "  ${RED}RUN FAILED${NORMAL}!\n"
-                        else
-                            if [ "${size}" -eq 32 ]
-                            then
-                                temp=`cut -d' ' -f2 < ${resfile}`
-                                eng=`cut -d' ' -f3 < ${resfile}`
-                                p=`cut -d' ' -f4 < ${resfile}`
+                            temp=`cut -d' ' -f2 < ${resfile}`
+                            eng=`cut -d' ' -f3 < ${resfile}`
+                            p=`cut -d' ' -f4 < ${resfile}`
 
-                                tmpchk=`perl -e "print abs((${tmpref} - ${temp})/${tmpref}) < ${tol}"`
-                                engchk=`perl -e "print abs((${engref} - ${eng})/${engref}) < ${tol}"`
-                                pchk=`perl -e   "print abs((${pref}   - ${p})/${pref}) < ${tol}"`
-                                printf " TUP  ${temp} ${eng} ${p} "
-                                if [ ! -z ${tmpchk} ]  && [ ! -z ${engchk} ] && [ ! -z ${pchk} ]
-                                then
-                                    printf "  ${GREEN}RUN + CHECK PASSED${NORMAL}!\n"
-                                    run_success=$((run_success + 1))
-                                else
-                                    printf "  ${RED}CHECK FAILED${NORMAL}!"
-                                    tmprel=`perl -e "printf \"%e\", abs((${tmpref} - ${temp})/${tmpref})"`
-                                    engrel=`perl -e "printf \"%e\", abs((${engref} - ${eng})/${engref})"`
-                                    prel=`perl -e   "printf \"%e\", abs((${pref}   - ${p})/${pref})"`
-                                    printf " ${tmprel} ${engrel} ${prel}\n"
-                                fi
-                            else
-                                printf "  ${GREEN}RUN OK, CHECK SKIPPED${NORMAL}!\n"
+                            tmpchk=`perl -e "print abs((${tmpref} - ${temp})/${tmpref}) < ${tol}"`
+                            engchk=`perl -e "print abs((${engref} - ${eng})/${engref}) < ${tol}"`
+                            pchk=`perl -e   "print abs((${pref}   - ${p})/${pref}) < ${tol}"`
+                            printf " TUP  ${temp} ${eng} ${p} "
+                            if [ ! -z ${tmpchk} ]  && [ ! -z ${engchk} ] && [ ! -z ${pchk} ]
+                            then
+                                printf "  ${GREEN}RUN + CHECK PASSED${NORMAL}!\n"
                                 run_success=$((run_success + 1))
+                            else
+                                printf "  ${RED}CHECK FAILED${NORMAL}!"
+                                tmprel=`perl -e "printf \"%e\", abs((${tmpref} - ${temp})/${tmpref})"`
+                                engrel=`perl -e "printf \"%e\", abs((${engref} - ${eng})/${engref})"`
+                                prel=`perl -e   "printf \"%e\", abs((${pref}   - ${p})/${pref})"`
+                                printf " ${tmprel} ${engrel} ${prel}\n"
                             fi
+                        else
+                            printf "  ${GREEN}RUN OK, CHECK SKIPPED${NORMAL}!\n"
+                            run_success=$((run_success + 1))
                         fi
-                    done
+                    fi
                 done
             done
         done
