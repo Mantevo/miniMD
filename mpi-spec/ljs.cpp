@@ -98,8 +98,23 @@ int main(int argc, char** argv)
 
   int error = 0;
 
-  if(input_file == NULL)
-    error = input(in, "in.lj.miniMD");
+  if(input_file == NULL) {
+    in.units = 0;                 // lj        units (lj or metal)
+    in.datafile = NULL;           // none      data file (none or filename)
+    in.forcetype = FORCELJ;       // lj        force style (lj or eam)
+    in.epsilon = 1.0;
+    in.sigma = 1.0;               // 1.0 1.0   LJ parameters (epsilon and sigma; COMD: 0.167 / 2.315)
+    in.nx = in.ny = in.nz = 32;   // 32 32 32  size of problem
+    in.ntimes = 1000;             // 100       timesteps
+    in.dt = 0.005;                // 0.005     timestep size
+    in.t_request = 1.44;          // 1.44      initial temperature
+    in.rho = 0.8442;              // 0.8442    density
+    in.neigh_every = 20;          // 20        reneighboring every this many steps
+    in.force_cut = 2.5;
+    in.neigh_cut = 0.30;          // 2.5 0.3   force cutoff and neighbor skin
+    in.thermo_nstat = 100;        // 100       thermo calculation every this many steps (0 = start,end)
+    in.neigh_cut += in.force_cut;
+  }
   else
     error = input(in, input_file);
 
@@ -481,7 +496,7 @@ int main(int argc, char** argv)
     fprintf(stdout, "# Run Settings: \n");
     fprintf(stdout, "\t# MPI processes: %i\n", comm.nprocs);
     fprintf(stdout, "\t# Host Threads: %i\n", Kokkos::HostSpace::execution_space::concurrency());
-    fprintf(stdout, "\t# Inputfile: %s\n", input_file == 0 ? "in.lj.miniMD" : input_file);
+    fprintf(stdout, "\t# Inputfile: %s\n", input_file == 0 ? "none" : input_file);
     fprintf(stdout, "\t# Datafile: %s\n", in.datafile ? in.datafile : "None");
     fprintf(stdout, "# Physics Settings: \n");
     fprintf(stdout, "\t# ForceStyle: %s\n", in.forcetype == FORCELJ ? "LJ" : "EAM");
@@ -552,7 +567,8 @@ int main(int argc, char** argv)
            nprocs, num_threads, integrate.ntimes, natoms,
            timer.array[TIME_TOTAL], timer.array[TIME_FORCE], timer.array[TIME_NEIGH], timer.array[TIME_COMM], time_other,
            1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL], 1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL] / nprocs / num_threads, timer.array[TIME_TEST]);
-
+    printf("# SPEC-MPI Benchmark FOM\n");
+    printf("%i %i %i %lf\n",nprocs,num_threads,natoms,1.e-6*sqrt(1.0*integrate.ntimes/timer.array[TIME_TOTAL]/100.0) * 1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL]);
   }
 
   if(yaml_output)
