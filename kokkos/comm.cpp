@@ -290,7 +290,7 @@ void Comm::communicate(Atom &atom)
     int_1d_view_type list = Kokkos::subview(sendlist,iswap,Kokkos::ALL());
     if(sendproc[iswap] != me) {
       atom.pack_comm(sendnum[iswap], list, buf_send, pbc_flags);
-
+      Kokkos::fence();
     /* exchange with another proc
        if self, set recv buffer to send buffer */
 
@@ -310,8 +310,10 @@ void Comm::communicate(Atom &atom)
 
       buf = buf_recv;
       atom.unpack_comm(recvnum[iswap], firstrecv[iswap], buf);
+      Kokkos::fence();
     } else
       atom.pack_comm_self(sendnum[iswap], list, firstrecv[iswap], pbc_flags);
+      Kokkos::fence();
   }
 
   Kokkos::Profiling::popRegion();
@@ -334,6 +336,7 @@ void Comm::reverse_communicate(Atom &atom)
     /* pack buffer */
 
     atom.pack_reverse(recvnum[iswap], firstrecv[iswap], buf_send);
+    Kokkos::fence();
 
     /* exchange with another proc
        if self, set recv buffer to send buffer */
@@ -359,6 +362,7 @@ void Comm::reverse_communicate(Atom &atom)
     /* unpack buffer */
 
     atom.unpack_reverse(sendnum[iswap], list, buf);
+    Kokkos::fence();
   }
 
   Kokkos::Profiling::popRegion();
@@ -476,6 +480,7 @@ void Comm::exchange(Atom &atom_)
       }
 
       if(nrecv > maxrecv) growrecv(nrecv);
+      Kokkos::fence();
 
       if(sizeof(MMD_float) == 4) {
         MPI_Irecv(buf_recv.data(), nrecv1, MPI_FLOAT, procneigh[idim][1], 0,
@@ -525,6 +530,7 @@ void Comm::exchange(Atom &atom_)
       atom.growarray();
 
     Kokkos::parallel_for(Kokkos::RangePolicy<TagExchangeUnpack>(0,nrecv_atoms),*this);
+    Kokkos::fence();
 
   }
   atom_ = atom;
@@ -651,7 +657,7 @@ void Comm::borders(Atom &atom_)
       if(nsend * 4 > maxsend) growsend(nsend * 4);
 
       Kokkos::parallel_for(Kokkos::RangePolicy<TagBorderPack>(0,nsend),*this);
-
+      Kokkos::fence();
       /* swap atoms with other proc
       put incoming ghosts at end of my atom arrays
       if swapping with self, simply copy, no messages */
@@ -691,6 +697,7 @@ void Comm::borders(Atom &atom_)
       x = atom.x;
 
       Kokkos::parallel_for(Kokkos::RangePolicy<TagBorderUnpack>(0,nrecv),*this);
+      Kokkos::fence();
 
       /* set all pointers & counters */
 
