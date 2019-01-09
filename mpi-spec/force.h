@@ -56,6 +56,7 @@ class Force
 
     int use_sse;
     int use_oldcompute;
+    int use_custom_force;
     int nthreads;
     MMD_int reneigh;
     Timer* timer;
@@ -69,7 +70,7 @@ class Force
     MMD_float epsilon_s[MAX_STACK_TYPES*MAX_STACK_TYPES];
     MMD_float sigma6_s[MAX_STACK_TYPES*MAX_STACK_TYPES];
 
-  protected:
+  //protected:
 
     int nlocal;
     int nall;

@@ -126,6 +126,10 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 
   /* switch to correct compute */
 
+  if(use_custom_force) {
+    if(compute_lj(*this,neighbor.halfneigh,neighbor.ghost_newton))
+      return;
+  }
   if(evflag) {
     if(neighbor.halfneigh) {
       if(neighbor.ghost_newton) {

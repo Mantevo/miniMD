@@ -70,7 +70,7 @@ int main(int argc, char** argv)
   int nz = -1;
   int check_safeexchange = 0;   //if 1 complain if atom moves further than 1 subdomain length between exchanges
   int do_safeexchange = 0;      //if 1 use safe exchange mode [allows exchange over multiple subdomains]
-  int use_sse = 0;              //setting for SSE variant of miniMD only
+  int use_custom_force = 0;
   int screen_yaml = 0;          //print yaml output to screen also
   int yaml_output = 0;          //print yaml output
   int halfneigh = 1;            //1: use half neighborlist; 0: use full neighborlist; -1: use original miniMD version half neighborlist force
@@ -220,8 +220,8 @@ int main(int argc, char** argv)
       continue;
     }
 
-    if((strcmp(argv[i], "-sse") == 0))  {
-      use_sse = atoi(argv[++i]);
+    if((strcmp(argv[i], "--custom_force") == 0))  {
+      use_custom_force = 1;
       continue;
     }
 
@@ -284,8 +284,8 @@ int main(int argc, char** argv)
       printf("\t-t / --num_threads <threads>: set number of threads per thread-team (default 1)\n");
       printf("\t--half_neigh <int>:           use half neighborlists (default 1)\n"
              "\t                                0: full neighborlist\n"
-             "\t                                1: half neighborlist\n"
-             "\t                               -1: original miniMD half neighborlist force (not OpenMP safe)\n");
+             "\t                                1: half neighborlist\n");
+      printf("\t--custom_force:               use custom force implementation\n");
       printf("\t-d / --device <int>:          choose device to use (only applicable for GPU execution)\n");
       printf("\t-dm / --device_map:           map devices to MPI ranks\n");
       printf("\t-ng / --num_gpus <int>:       give number of GPUs per Node (used in conjuction with -dm\n"
@@ -380,27 +380,17 @@ int main(int argc, char** argv)
     Kokkos::deep_copy(d_sigma,h_sigma);
   }
 
+  force->use_custom_force = use_custom_force;
   neighbor.ghost_newton = ghost_newton;
 
   neighbor.timer = &timer;
   force->timer = &timer;
   comm.check_safeexchange = check_safeexchange;
   comm.do_safeexchange = do_safeexchange;
-  force->use_sse = use_sse;
   neighbor.halfneigh = halfneigh;
   neighbor.team_neigh_build = team_neigh;
 
   if(halfneigh < 0) force->use_oldcompute = 1;
-
-  if(use_sse) {
-#ifdef VARIANT_REFERENCE
-
-    if(me == 0) printf("ERROR: Trying to run with -sse with miniMD reference version. Use SSE variant instead. Exiting.\n");
-
-    MPI_Finalize();
-    exit(0);
-#endif
-  }
 
   if(num_steps > 0) in.ntimes = num_steps;
 
@@ -560,15 +550,18 @@ int main(int argc, char** argv)
 
   if(me == 0) {
     double time_other = timer.array[TIME_TOTAL] - timer.array[TIME_FORCE] - timer.array[TIME_NEIGH] - timer.array[TIME_COMM];
+    double timestep_rate = 1.0 * integrate.ntimes/timer.array[TIME_TOTAL];
+    double performance = timestep_rate * natoms;
     printf("\n\n");
     printf("# Performance Summary:\n");
-    printf("# MPI_proc OMP_threads nsteps natoms t_total t_force t_neigh t_comm t_other performance perf/thread grep_string t_extra\n");
-    printf("%i %i %i %i %lf %lf %lf %lf %lf %lf %lf PERF_SUMMARY %lf\n\n\n",
+    printf("# MPI_proc OMP_threads nsteps natoms t_total t_force t_neigh t_comm t_other rate performance perf/thread spec-fom grep_string t_extra\n");
+    printf("%i %i %i %i %lf %lf %lf %lf %lf %lf %lf %lf %lf PERF_SUMMARY %lf\n\n\n",
            nprocs, num_threads, integrate.ntimes, natoms,
            timer.array[TIME_TOTAL], timer.array[TIME_FORCE], timer.array[TIME_NEIGH], timer.array[TIME_COMM], time_other,
-           1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL], 1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL] / nprocs / num_threads, timer.array[TIME_TEST]);
+           timestep_rate ,
+           performance, performance / nprocs / num_threads, 1.e-9*sqrt(timestep_rate) * performance, timer.array[TIME_TEST]);
     printf("# SPEC-MPI Benchmark FOM\n");
-    printf("%i %i %i %lf\n",nprocs,num_threads,natoms,1.e-6*sqrt(1.0*integrate.ntimes/timer.array[TIME_TOTAL]/100.0) * 1.0 * natoms * integrate.ntimes / timer.array[TIME_TOTAL]);
+    printf("%i %i %i %lf\n",nprocs,num_threads,natoms,1.e-9*sqrt(timestep_rate) * performance);
   }
 
   if(yaml_output)

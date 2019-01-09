@@ -38,8 +38,7 @@
 #include "force.h"
 #include "comm.h"
 
-
-class ForceLJ : Force
+class ForceLJ : public Force
 {
   public:
 
@@ -86,5 +85,7 @@ class ForceLJ : Force
     void operator() (TagComputeFullNeigh<EVFLAG,STACK_PARAMS> , const int& i, eng_virial_type& eng_virial ) const;
 
 };
+
+bool compute_lj(const ForceLJ& force, MMD_int half_neigh, MMD_int ghost_newton);
 
 #endif
