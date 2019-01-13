@@ -51,7 +51,7 @@ public:
       MMD_float fiy = 0;
       MMD_float fiz = 0;
 
-      #pragma simd reduction (+: fix,fiy,fiz)
+      #pragma omp simd reduction (+: fix,fiy,fiz)
       for(int k = 0; k < numneighs; k++) {
         const int j = neighs[k];
         const MMD_float delx = xtmp - x[j * PAD + 0];

@@ -537,8 +537,12 @@ int main(int argc, char** argv)
   integrate.run(atom, force, neighbor, comm, thermo, timer);
   timer.barrier_stop(TIME_TOTAL);
 
-  int natoms;
-  MPI_Allreduce(&atom.nlocal, &natoms, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  int64_t natoms;
+  double f_atoms_local = atom.nlocl;
+  double f_atoms = 0;
+  MPI_Allreduce(&f_atoms_local, &f_atoms, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  natoms = f_atoms;
 
   force->evflag = 1;
   force->compute(atom, neighbor, comm, me);
@@ -555,13 +559,14 @@ int main(int argc, char** argv)
     printf("\n\n");
     printf("# Performance Summary:\n");
     printf("# MPI_proc OMP_threads nsteps natoms t_total t_force t_neigh t_comm t_other rate performance perf/thread spec-fom grep_string t_extra\n");
-    printf("%i %i %i %i %lf %lf %lf %lf %lf %lf %lf %lf %lf PERF_SUMMARY %lf\n\n\n",
+    printf("%i %i %i %li %lf %lf %lf %lf %lf %lf %lf %lf %lf PERF_SUMMARY %lf\n\n\n",
            nprocs, num_threads, integrate.ntimes, natoms,
            timer.array[TIME_TOTAL], timer.array[TIME_FORCE], timer.array[TIME_NEIGH], timer.array[TIME_COMM], time_other,
            timestep_rate ,
-           performance, performance / nprocs / num_threads, 1.e-9*sqrt(timestep_rate) * performance, timer.array[TIME_TEST]);
-    printf("# SPEC-MPI Benchmark FOM\n");
-    printf("%i %i %i %lf\n",nprocs,num_threads,natoms,1.e-9*sqrt(timestep_rate) * performance);
+           performance, performance / nprocs / num_threads, 1.e-9 * timestep_rate * performance, timer.array[TIME_TEST]);
+    printf("# SPEC-MPI Benchmark FOM:\n");
+    printf("# MPI_proc Threads nsteps natoms t_total FOM\n");
+    printf("%i %i %li %lf %lf SPEC_MPI_SUMMARY\n",nprocs,num_threads,nsteps,natoms,timer.array[TIME_TOTAL],1.e-9 * timestep_rate * performance);
   }
 
   if(yaml_output)
