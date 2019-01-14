@@ -185,6 +185,27 @@ int main(int argc, char** argv)
       continue;
     }
 
+    if((strcmp(argv[i], "--spec-xs") == 0)) {
+      system_size = 27;
+      continue;
+    }
+    if((strcmp(argv[i], "--spec-s") == 0)) {
+      system_size = 62;
+      continue;
+    }
+    if((strcmp(argv[i], "--spec-m") == 0)) {
+      system_size = 143;
+      continue;
+    }
+    if((strcmp(argv[i], "--spec-l") == 0)) {
+      system_size = 384;
+      continue;
+    }
+    if((strcmp(argv[i], "--spec-xl") == 0)) {
+      system_size = 1040;
+      continue;
+    }
+
     if((strcmp(argv[i], "-nx") == 0)) {
       nx = atoi(argv[++i]);
       continue;
@@ -538,7 +559,7 @@ int main(int argc, char** argv)
   timer.barrier_stop(TIME_TOTAL);
 
   int64_t natoms;
-  double f_atoms_local = atom.nlocl;
+  double f_atoms_local = atom.nlocal;
   double f_atoms = 0;
   MPI_Allreduce(&f_atoms_local, &f_atoms, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
@@ -566,7 +587,7 @@ int main(int argc, char** argv)
            performance, performance / nprocs / num_threads, 1.e-9 * timestep_rate * performance, timer.array[TIME_TEST]);
     printf("# SPEC-MPI Benchmark FOM:\n");
     printf("# MPI_proc Threads nsteps natoms t_total FOM\n");
-    printf("%i %i %li %lf %lf SPEC_MPI_SUMMARY\n",nprocs,num_threads,nsteps,natoms,timer.array[TIME_TOTAL],1.e-9 * timestep_rate * performance);
+    printf("%i %i %i %li %lf %lf SPEC_MPI_SUMMARY\n",nprocs,num_threads,integrate.ntimes,natoms,timer.array[TIME_TOTAL],1.e-9 * timestep_rate * performance);
   }
 
   if(yaml_output)
