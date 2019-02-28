@@ -48,7 +48,7 @@ void stats(int, double*, double*, double*, double*, int, int*);
 void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
             Thermo &thermo, Integrate &integrate, Timer &timer, int screen_yaml)
 {
-  int i, n;
+  int64_t i, n;
   int histo[10];
   double tmp, ave, max, min, total;
   FILE* fp;
@@ -62,8 +62,11 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
 
   atom.pbc();
 
-  int natoms;
-  MPI_Allreduce(&atom.nlocal, &natoms, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  int64_t natoms;
+  double f_natoms;
+  double f_nlocal = atom.nlocal;
+  MPI_Allreduce(&f_nlocal, &f_natoms, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  natoms = f_natoms;
 
   int nlost = 0;
 
@@ -77,7 +80,7 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
   MPI_Allreduce(&nlost, &nlostall, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
   if(natoms != atom.natoms || nlostall > 0) {
-    if(me == 0) printf("Atom counts = %d %d %d\n",
+    if(me == 0) printf("Atom counts = %d %li %li\n",
                          nlostall, natoms, atom.natoms);
 
     if(me == 0) printf("ERROR: Incorrect number of atoms\n");
@@ -117,7 +120,7 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
       fprintf(stdout, "  threads: %i\n", nthreads);
       fprintf(stdout, "  datafile: %s\n", in.datafile ? in.datafile : "None");
       fprintf(stdout, "  units: %s\n", in.units == 0 ? "LJ" : "METAL");
-      fprintf(stdout, "  atoms: %i\n", atom.natoms);
+      fprintf(stdout, "  atoms: %li\n", atom.natoms);
       fprintf(stdout, "  system_size: %2.2lf %2.2lf %2.2lf\n", atom.box.xprd, atom.box.yprd, atom.box.zprd);
       fprintf(stdout, "  unit_cells: %i %i %i\n", in.nx, in.ny, in.nz);
       fprintf(stdout, "  density: %lf\n", in.rho);
@@ -145,7 +148,7 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     fprintf(fp, "  threads: %i\n", nthreads);
     fprintf(fp, "  datafile: %s\n", in.datafile ? in.datafile : "None");
     fprintf(fp, "  units: %s\n", in.units == 0 ? "LJ" : "METAL");
-    fprintf(fp, "  atoms: %i\n", atom.natoms);
+    fprintf(fp, "  atoms: %li\n", atom.natoms);
     fprintf(fp, "  system_size: %2.2lf %2.2lf %2.2lf\n", atom.box.xprd, atom.box.yprd, atom.box.zprd);
     fprintf(fp, "  unit_cells: %i %i %i\n", in.nx, in.ny, in.nz);
     fprintf(fp, "  density: %lf\n", in.rho);

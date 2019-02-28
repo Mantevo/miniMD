@@ -58,7 +58,7 @@ class Atom
     struct TagAtomSort {};
 
     typedef int value_type;
-    int natoms;
+    int64_t natoms;
     int nlocal, nghost;
     int nmax;
 

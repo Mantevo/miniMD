@@ -513,7 +513,7 @@ int main(int argc, char** argv)
     fprintf(stdout, "\t# ForceStyle: %s\n", in.forcetype == FORCELJ ? "LJ" : "EAM");
     fprintf(stdout, "\t# Force Parameters: %2.2lf %2.2lf\n",in.epsilon,in.sigma);
     fprintf(stdout, "\t# Units: %s\n", in.units == 0 ? "LJ" : "METAL");
-    fprintf(stdout, "\t# Atoms: %i\n", atom.natoms);
+    fprintf(stdout, "\t# Atoms: %li\n", atom.natoms);
     fprintf(stdout, "\t# Atom types: %i\n", atom.ntypes);
     fprintf(stdout, "\t# System size: %2.2lf %2.2lf %2.2lf (unit cells: %i %i %i)\n", atom.box.xprd, atom.box.yprd, atom.box.zprd, in.nx, in.ny, in.nz);
     fprintf(stdout, "\t# Density: %lf\n", in.rho);

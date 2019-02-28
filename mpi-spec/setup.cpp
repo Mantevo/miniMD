@@ -44,7 +44,7 @@
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
-double random(int*);
+double random(int64_t*);
 
 #define NSECTIONS 3
 #define MAXLINE 255
@@ -130,7 +130,7 @@ void read_lammps_header(Atom &atom)
 
     // search line for header keyword and set corresponding variable
 
-    if(strstr(line, "atoms")) sscanf(line, "%i", &atom.natoms);
+    if(strstr(line, "atoms")) sscanf(line, "%li", &atom.natoms);
     else if(strstr(line, "atom types")) sscanf(line, "%i", &ntypes);
 
     // check for these first
@@ -168,10 +168,10 @@ void read_lammps_header(Atom &atom)
 
 void read_lammps_atoms(Atom &atom, x_host_view_type x)
 {
-  int i;
+  int64_t i;
 
-  int nread = 0;
-  int natoms = atom.natoms;
+  int64_t nread = 0;
+  int64_t natoms = atom.natoms;
   atom.nlocal = 0;
 
   int type;
@@ -179,7 +179,7 @@ void read_lammps_atoms(Atom &atom, x_host_view_type x)
 
   while(nread < natoms) {
     fgets(line, MAXLINE, fp);
-    sscanf(line, "%i %i %lg %lg %lg", &i, &type, &xx, &xy, &xz);
+    sscanf(line, "%li %i %lg %lg %lg", &i, &type, &xx, &xy, &xz);
     i--;
     x(i,0) = xx;
     x(i,1) = xy;
@@ -191,16 +191,16 @@ void read_lammps_atoms(Atom &atom, x_host_view_type x)
 
 void read_lammps_velocities(Atom &atom, x_host_view_type v)
 {
-  int i;
+  int64_t i;
 
-  int nread = 0;
-  int natoms = atom.natoms;
+  int64_t nread = 0;
+  int64_t natoms = atom.natoms;
 
   double x, y, z;
 
   while(nread < natoms) {
     fgets(line, MAXLINE, fp);
-    sscanf(line, "%i %lg %lg %lg", &i, &x, &y, &z);
+    sscanf(line, "%li %lg %lg %lg", &i, &x, &y, &z);
     i--;
     v(i,0) = x;
     v(i,1) = y;
@@ -275,7 +275,7 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
     read_lammps_parse_keyword(0);
   }
 
-  for(int i = 0; i < atom.natoms; i++) {
+  for(int64_t i = 0; i < atom.natoms; i++) {
     if(x(i,0) >= atom.box.xlo && x(i,0) < atom.box.xhi &&
         x(i,1) >= atom.box.ylo && x(i,1) < atom.box.yhi &&
         x(i,2) >= atom.box.zlo && x(i,2) < atom.box.zhi)
@@ -287,8 +287,11 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
 
   /* check that correct # of atoms were created */
 
-  int natoms;
-  MPI_Allreduce(&atom.nlocal, &natoms, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  int64_t natoms;
+  double f_natoms;
+  double f_nlocal = atom.nlocal;
+  MPI_Allreduce(&f_nlocal, &f_natoms, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  natoms = f_natoms;
 
   if(natoms != atom.natoms) {
     if(me == 0) printf("Created incorrect # of atoms\n");
@@ -319,7 +322,7 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
 {
   /* total # of atoms */
 
-  atom.natoms = 4 * nx * ny * nz;
+  atom.natoms = int64_t(4) * int64_t(nx) * int64_t(ny) * int64_t(nz);
   atom.nlocal = 0;
 
   /* determine loop bounds of lattice subsection that overlaps my sub-box
@@ -348,14 +351,14 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
      exercise RNG between calls to avoid correlations in adjacent atoms */
 
   double xtmp, ytmp, ztmp, vx, vy, vz;
-  int i, j, k, m, n;
-  int sx = 0;
-  int sy = 0;
-  int sz = 0;
-  int ox = 0;
-  int oy = 0;
-  int oz = 0;
-  int subboxdim = 8;
+  int64_t i, j, k, m, n;
+  int64_t sx = 0;
+  int64_t sy = 0;
+  int64_t sz = 0;
+  int64_t ox = 0;
+  int64_t oy = 0;
+  int64_t oz = 0;
+  int64_t subboxdim = 8;
 
   int iflag = 0;
 
@@ -440,8 +443,11 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
 
   /* check that correct # of atoms were created */
 
-  int natoms;
-  MPI_Allreduce(&atom.nlocal, &natoms, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  int64_t natoms;
+  double f_natoms;
+  double f_nlocal = atom.nlocal;
+  MPI_Allreduce(&f_nlocal, &f_natoms, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  natoms = f_natoms;
 
   if(natoms != atom.natoms) {
     if(me == 0) printf("Created incorrect # of atoms\n");
@@ -459,7 +465,7 @@ int create_atoms(Atom &atom, int nx, int ny, int nz, double rho)
 
 void create_velocity(double t_request, Atom &atom, Thermo &thermo)
 {
-  int i;
+  int64_t i;
 
   /* zero center-of-mass motion */
   Kokkos::deep_copy(atom.h_v,atom.v);
@@ -512,9 +518,9 @@ void create_velocity(double t_request, Atom &atom, Thermo &thermo)
 #define IR 2836
 #define MASK 123459876
 
-double random(int* idum)
+double random(int64_t* idum)
 {
-  int k;
+  int64_t k;
   double ans;
 
   k = (*idum) / IQ;
