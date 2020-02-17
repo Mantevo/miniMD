@@ -4,7 +4,7 @@ MPI_PATH =
 HAVE_MPI = yes
 
 #Set the path to Kokkos
-KOKKOS_PATH = /home/crtrott/kokkos
+KOKKOS_PATH =${HOME}/Kokkos/kokkos
 #Set the Devices to compile for
 KOKKOS_DEVICES=OpenMP
 #Set the Architecture to compiler for
