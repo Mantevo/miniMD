@@ -936,8 +936,6 @@ void ForceEAM::communicate(Atom &atom, Comm &comm)
 
   int iswap;
   float_1d_view_type buf;
-  MPI_Request request;
-  MPI_Status status;
 
   for(iswap = 0; iswap < comm.nswap; iswap++) {
 
@@ -949,19 +947,10 @@ void ForceEAM::communicate(Atom &atom, Comm &comm)
        if self, set recv buffer to send buffer */
 
     if(comm.sendproc[iswap] != me) {
-      if(sizeof(MMD_float) == 4) {
-        MPI_Irecv(comm.buf_recv.data(), comm.comm_recv_size[iswap], MPI_FLOAT,
-                  comm.recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(comm.buf_send.data(), comm.comm_send_size[iswap], MPI_FLOAT,
-                 comm.sendproc[iswap], 0, MPI_COMM_WORLD);
-      } else {
-        MPI_Irecv(comm.buf_recv.data(), comm.comm_recv_size[iswap], MPI_DOUBLE,
-                  comm.recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-        MPI_Send(comm.buf_send.data(), comm.comm_send_size[iswap], MPI_DOUBLE,
-                 comm.sendproc[iswap], 0, MPI_COMM_WORLD);
-      }
-
-      MPI_Wait(&request, &status);
+      MPI_Datatype type = (sizeof(MMD_float) == 4) ? MPI_FLOAT : MPI_DOUBLE;
+      MPI_Sendrecv(comm.buf_send.data(), comm.comm_send_size[iswap], type, comm.sendproc[iswap], 0,
+                   comm.buf_recv.data(), comm.comm_recv_size[iswap], type, comm.recvproc[iswap], 0,
+                   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       buf = comm.buf_recv;
     } else buf = comm.buf_send;
 
