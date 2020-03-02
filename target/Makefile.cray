@@ -1,0 +1,69 @@
+# Makefile for mpicxx compiler
+
+SHELL = /bin/sh
+
+# Default Options
+
+#.IGNORE:
+
+# System-specific settings
+
+CC =		`which CC`
+CCFLAGS =	-O3 -DMPICH_IGNORE_CXX_SEEK -DNOCHUNK
+LINK =		`which CC`
+LINKFLAGS =	-O3
+USRLIB = 	
+SYSLIB =	
+SIZE =		size
+
+ifeq ($(SIMD), yes)
+CCFLAGS += -DUSE_SIMD
+endif
+
+ifeq ($(ANSI_ALIAS), yes)
+CCFLAGS += -ansi-alias 
+LINKFLAGS += -ansi-alias
+endif
+
+#Check for PAD
+ifeq ($(PAD4), yes)
+CCFLAGS += -DPAD4 
+LINKFLAGS += -DPAD4 
+endif
+
+#Check for single precision
+ifeq ($(SP), yes)
+CCFLAGS += -DPRECISION=1 
+LINKFLAGS += -DPRECISION=1 
+else
+CCFLAGS += -DPRECISION=2
+LINKFLAGS += -DPRECISION=2
+endif
+
+#Check if debug on
+ifeq ($(DEBUG), yes)
+CCFLAGS += -g -debug inline-debug-info 
+LINKFLAGS += -g -debug inline-debug-info
+endif
+
+#Use LIBRT for precision timers
+ifeq ($(LIBRT),yes)
+CCFLAGS += -DPREC_TIMER
+USRLIB += -lrt
+endif
+
+# Link rule
+
+$(EXE):	$(OBJ)
+	$(LINK) $(LINKFLAGS) $(OBJ) $(USRLIB) $(SYSLIB) -o $(EXE)
+	$(SIZE) $(EXE)
+
+# Compilation rules
+
+.cpp.o:
+	$(CC) $(CCFLAGS) -E $*.cpp > $*.2.cpp
+	$(CC) $(CCFLAGS) -c $*.2.cpp -o $*.o
+
+# Individual dependencies
+
+$(OBJ): $(INC)

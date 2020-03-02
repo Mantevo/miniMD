@@ -1,0 +1,30 @@
+﻿---
+BasedOnStyle: LLVM
+BreakBeforeBraces: Allman
+AlignEscapedNewlinesLeft: true
+AlignTrailingComments: true
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignAfterOpenBracket: true
+AlignOperands: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: true
+DerivePointerBinding: true
+IndentCaseLabels: false
+IndentFunctionDeclarationAfterType: false
+IndentWidth: 2
+MaxEmptyLinesToKeep: 2
+DerivePointerAlignment: false
+PointerAlignment: Right
+SpaceAfterControlStatementKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceInEmptyParentheses: false
+SpacesInCStyleCastParentheses: true
+SpacesInParentheses: false
+SpaceBeforeParens: Never
+Standard: Auto
+UseTab: Never
+ColumnLimit: 1000
+...

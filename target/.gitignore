@@ -1,0 +1,11 @@
+miniMD_clang
+miniMD_intel
+miniMD_cray_intel
+miniMD_cray
+miniMD_openmpi
+
+Obj_clang/
+Obj_intel/
+Obj_cray_intel/
+Obj_cray/
+Obj_openmpi/
