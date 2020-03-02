@@ -279,8 +279,6 @@ void Comm::communicate(Atom &atom)
   int iswap;
   int pbc_flags[4];
   MMD_float* buf;
-  MPI_Request request;
-  MPI_Status status;
 
   for(iswap = 0; iswap < nswap; iswap++) {
 
@@ -302,19 +300,10 @@ void Comm::communicate(Atom &atom)
     if(sendproc[iswap] != me) {
       #pragma omp master
       {
-        if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_FLOAT,
-          recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, comm_send_size[iswap], MPI_FLOAT,
-          sendproc[iswap], 0, MPI_COMM_WORLD);
-        } else {
-          MPI_Irecv(buf_recv, comm_recv_size[iswap], MPI_DOUBLE,
-          recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, comm_send_size[iswap], MPI_DOUBLE,
-          sendproc[iswap], 0, MPI_COMM_WORLD);
-        }
-
-        MPI_Wait(&request, &status);
+        MPI_Datatype type = (sizeof(MMD_float) == 4) ? MPI_FLOAT : MPI_DOUBLE;
+        MPI_Sendrecv(buf_send, comm_send_size[iswap], type, sendproc[iswap], 0,
+                     buf_recv, comm_recv_size[iswap], type, recvproc[iswap], 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       }
       buf = buf_recv;
     } else buf = buf_send;
@@ -333,8 +322,6 @@ void Comm::reverse_communicate(Atom &atom)
 {
   int iswap;
   MMD_float* buf;
-  MPI_Request request;
-  MPI_Status status;
 
   for(iswap = nswap - 1; iswap >= 0; iswap--) {
 
@@ -351,18 +338,10 @@ void Comm::reverse_communicate(Atom &atom)
 
       #pragma omp master
       {
-        if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(buf_recv, reverse_recv_size[iswap], MPI_FLOAT,
-          sendproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, reverse_send_size[iswap], MPI_FLOAT,
-          recvproc[iswap], 0, MPI_COMM_WORLD);
-        } else {
-          MPI_Irecv(buf_recv, reverse_recv_size[iswap], MPI_DOUBLE,
-          sendproc[iswap], 0, MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, reverse_send_size[iswap], MPI_DOUBLE,
-          recvproc[iswap], 0, MPI_COMM_WORLD);
-        }
-        MPI_Wait(&request, &status);
+        MPI_Datatype type = (sizeof(MMD_float) == 4) ? MPI_FLOAT : MPI_DOUBLE;
+        MPI_Sendrecv(buf_send, reverse_send_size[iswap], type, recvproc[iswap], 0,
+                     buf_recv, reverse_recv_size[iswap], type, sendproc[iswap], 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       }
       buf = buf_recv;
     } else buf = buf_send;
@@ -390,9 +369,6 @@ void Comm::exchange(Atom &atom)
   int i, m, n, idim, nsend, nrecv, nrecv1, nrecv2, nlocal;
   MMD_float lo, hi, value;
   MMD_float* x;
-
-  MPI_Request request;
-  MPI_Status status;
 
   /* enforce PBC */
 
@@ -542,42 +518,29 @@ void Comm::exchange(Atom &atom)
       /* send/recv atoms in both directions
          only if neighboring procs are different */
 
-      MPI_Send(&nsend, 1, MPI_INT, procneigh[idim][0], 0, MPI_COMM_WORLD);
-      MPI_Recv(&nrecv1, 1, MPI_INT, procneigh[idim][1], 0, MPI_COMM_WORLD, &status);
+      MPI_Sendrecv(&nsend, 1, MPI_INT, procneigh[idim][0], 0,
+                   &nrecv1, 1, MPI_INT, procneigh[idim][1], 0,
+                   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       nrecv = nrecv1;
 
       if(procgrid[idim] > 2) {
-        MPI_Send(&nsend, 1, MPI_INT, procneigh[idim][1], 0, MPI_COMM_WORLD);
-        MPI_Recv(&nrecv2, 1, MPI_INT, procneigh[idim][0], 0, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&nsend, 1, MPI_INT, procneigh[idim][1], 0,
+                     &nrecv2, 1, MPI_INT, procneigh[idim][0], 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         nrecv += nrecv2;
       }
 
       if(nrecv > maxrecv) growrecv(nrecv);
 
-      if(sizeof(MMD_float) == 4) {
-        MPI_Irecv(buf_recv, nrecv1, MPI_FLOAT, procneigh[idim][1], 0,
-                  MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send, nsend, MPI_FLOAT, procneigh[idim][0], 0, MPI_COMM_WORLD);
-      } else {
-        MPI_Irecv(buf_recv, nrecv1, MPI_DOUBLE, procneigh[idim][1], 0,
-                  MPI_COMM_WORLD, &request);
-        MPI_Send(buf_send, nsend, MPI_DOUBLE, procneigh[idim][0], 0, MPI_COMM_WORLD);
-      }
-
-      MPI_Wait(&request, &status);
+      MPI_Datatype type = (sizeof(MMD_float) == 4) ? MPI_FLOAT : MPI_DOUBLE;
+      MPI_Sendrecv(buf_send, nsend, type, procneigh[idim][0], 0,
+                   buf_recv, nrecv1, type, procneigh[idim][1], 0,
+                   MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
       if(procgrid[idim] > 2) {
-        if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(&buf_recv[nrecv1], nrecv2, MPI_FLOAT, procneigh[idim][0], 0,
-                    MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, nsend, MPI_FLOAT, procneigh[idim][1], 0, MPI_COMM_WORLD);
-        } else {
-          MPI_Irecv(&buf_recv[nrecv1], nrecv2, MPI_DOUBLE, procneigh[idim][0], 0,
-                    MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, nsend, MPI_DOUBLE, procneigh[idim][1], 0, MPI_COMM_WORLD);
-        }
-
-        MPI_Wait(&request, &status);
+        MPI_Sendrecv(buf_send, nsend, type, procneigh[idim][1], 0,
+                     buf_recv+nrecv1, nrecv2, type, procneigh[idim][0], 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       }
 
       nrecv_atoms = nrecv / 7;
@@ -639,9 +602,6 @@ void Comm::exchange_all(Atom &atom)
   MMD_float lo, hi, value;
   MMD_float* x;
 
-  MPI_Request request;
-  MPI_Status status;
-
   /* enforce PBC */
 
   atom.pbc();
@@ -694,22 +654,16 @@ void Comm::exchange_all(Atom &atom)
     *        only if neighboring procs are different */
     for(int ineed = 0; ineed < 2 * need[idim]; ineed += 1) {
       if(ineed < procgrid[idim] - 1) {
-        MPI_Send(&nsend, 1, MPI_INT, sendproc_exc[iswap], 0, MPI_COMM_WORLD);
-        MPI_Recv(&nrecv, 1, MPI_INT, recvproc_exc[iswap], 0, MPI_COMM_WORLD, &status);
+        MPI_Sendrecv(&nsend, 1, MPI_INT, sendproc_exc[iswap], 0,
+                     &nrecv, 1, MPI_INT, recvproc_exc[iswap], 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         if(nrecv > maxrecv) growrecv(nrecv);
 
-        if(sizeof(MMD_float) == 4) {
-          MPI_Irecv(buf_recv, nrecv, MPI_FLOAT, recvproc_exc[iswap], 0,
-                    MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, nsend, MPI_FLOAT, sendproc_exc[iswap], 0, MPI_COMM_WORLD);
-        } else {
-          MPI_Irecv(buf_recv, nrecv, MPI_DOUBLE, recvproc_exc[iswap], 0,
-                    MPI_COMM_WORLD, &request);
-          MPI_Send(buf_send, nsend, MPI_DOUBLE, sendproc_exc[iswap], 0, MPI_COMM_WORLD);
-        }
-
-        MPI_Wait(&request, &status);
+        MPI_Datatype type = (sizeof(MMD_float) == 4) ? MPI_FLOAT : MPI_DOUBLE;
+        MPI_Sendrecv(buf_send, nsend, type, sendproc_exc[iswap], 0,
+                     buf_recv, nrecv, type, recvproc_exc[iswap], 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         /* check incoming atoms to see if they are in my box
         *        if they are, add to my list */
@@ -749,8 +703,6 @@ void Comm::borders(Atom &atom)
   MMD_float lo, hi;
   int pbc_flags[4];
   MMD_float* x;
-  MPI_Request request;
-  MPI_Status status;
 
   /* erase all ghost atoms */
 
@@ -867,24 +819,16 @@ void Comm::borders(Atom &atom)
         nsend = nsend_thread[threads->omp_num_threads - 1];
 
         if(sendproc[iswap] != me) {
-          MPI_Send(&nsend, 1, MPI_INT, sendproc[iswap], 0, MPI_COMM_WORLD);
-          MPI_Recv(&nrecv, 1, MPI_INT, recvproc[iswap], 0, MPI_COMM_WORLD, &status);
+          MPI_Sendrecv(&nsend, 1, MPI_INT, sendproc[iswap], 0,
+                       &nrecv, 1, MPI_INT, recvproc[iswap], 0,
+                       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
           if(nrecv * atom.border_size > maxrecv) growrecv(nrecv * atom.border_size);
 
-          if(sizeof(MMD_float) == 4) {
-            MPI_Irecv(buf_recv, nrecv * atom.border_size, MPI_FLOAT,
-                      recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-            MPI_Send(buf_send, nsend * atom.border_size, MPI_FLOAT,
-                     sendproc[iswap], 0, MPI_COMM_WORLD);
-          } else {
-            MPI_Irecv(buf_recv, nrecv * atom.border_size, MPI_DOUBLE,
-                      recvproc[iswap], 0, MPI_COMM_WORLD, &request);
-            MPI_Send(buf_send, nsend * atom.border_size, MPI_DOUBLE,
-                     sendproc[iswap], 0, MPI_COMM_WORLD);
-          }
-
-          MPI_Wait(&request, &status);
+          MPI_Datatype type = (sizeof(MMD_float) == 4) ? MPI_FLOAT : MPI_DOUBLE;
+          MPI_Sendrecv(buf_send, nsend * atom.border_size, type, sendproc[iswap], 0,
+                       buf_recv, nrecv * atom.border_size, type, recvproc[iswap], 0,
+                       MPI_COMM_WORLD, MPI_STATUS_IGNORE);
           buf = buf_recv;
         } else {
           nrecv = nsend;
