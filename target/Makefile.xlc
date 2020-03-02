@@ -1,0 +1,62 @@
+# Makefile for mpicxx compiler
+
+SHELL = /bin/sh
+CUDA_ROOT?=/usr/local/cuda
+# Default Options
+#
+SIMD = no
+
+#.IGNORE:
+
+# System-specific settings
+
+
+CC =		xlc++
+CCFLAGS =	-O3 -I $(srcdir)/MPI-Stubs/ -MD -g -qsmp=omp -qoffload -std=c++11
+LINK =		xlc++
+LINKFLAGS =	-O3 -g -qsmp=omp -qoffload
+USRLIB =	-L $(srcdir)/MPI-Stubs/ -lmpi_stubs
+SYSLIB =
+SIZE =		size
+
+ifeq ($(SIMD), yes)
+CCFLAGS += -DUSE_SIMD
+endif
+
+ifeq ($(RED_PREC), yes)
+CCFLAGS += -ffast-math
+LINKFLAGS += -ffast-math
+endif
+
+ifeq ($(PAD), 3)
+CCFLAGS += -DPAD=3
+LINKFLAGS += -DPAD=3
+endif
+
+ifeq ($(PAD), 4)
+CCFLAGS += -DPAD=4
+LINKFLAGS += -DPAD=4
+endif
+
+ifeq ($(DEBUG), yes)
+CCFLAGS += -g -debug inline-debug-info
+LINKFLAGS += -g -debug inline-debug-info
+endif
+
+ifeq ($(SP), yes)
+CCFLAGS += -DPRECISION=1
+LINKFLAGS += -DPRECISION=1
+else
+CCFLAGS += -DPRECISION=2
+LINKFLAGS += -DPRECISION=2
+endif
+
+ifeq ($(LIBRT),yes)
+CCFLAGS += -DPREC_TIMER
+USRLIB += -lrt
+endif
+
+ifeq ($(OFFLOAD), nvptx)
+CCFLAGS   += -qtgtarch=sm_70 -DUSE_OFFLOAD -DOFFLOAD_NVPTX -DMAX_TEAM_SIZE=64 -I$(CUDA_ROOT)/include
+LINKFLAGS += -qtgtarch=sm_70 -L$(CUDA_ROOT)/lib64 -lnvToolsExt
+endif
