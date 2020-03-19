@@ -331,7 +331,7 @@ void Comm::reverse_communicate(Atom &atom)
     if(sendproc[iswap] != me) {
 
       MPI_Datatype type = (sizeof(MMD_float) == 4) ? MPI_FLOAT : MPI_DOUBLE;
-      MPI_Send(buf_send.data(), reverse_send_size[iswap], type, recvproc[iswap], 0,
+      MPI_Sendrecv(buf_send.data(), reverse_send_size[iswap], type, recvproc[iswap], 0,
                buf_recv.data(), reverse_recv_size[iswap], type, sendproc[iswap], 0,
                MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
