@@ -34,7 +34,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
-#include <omp.h>
+#include "openmp.h"
 #include "util.h"
 
 inline const char *get_variant_string()
