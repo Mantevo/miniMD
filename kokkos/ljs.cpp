@@ -306,10 +306,9 @@ int main(int argc, char** argv)
     }
   }
 
-  Kokkos::InitArguments args_kokkos;
-  args_kokkos.num_threads = num_threads;
-  args_kokkos.num_numa = teams;
-  args_kokkos.device_id = device;
+  Kokkos::InitializationSettings args_kokkos;
+  args_kokkos.set_num_threads(num_threads);
+  args_kokkos.set_device_id(device);
   Kokkos::initialize(args_kokkos);
   // Scope Guard
   {
