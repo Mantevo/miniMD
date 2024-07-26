@@ -4,10 +4,7 @@ project(miniMD)
 find_package(Kokkos REQUIRED)
 
 OPTION(MINIMD_ENABLE_MPI "" OFF)
-
-
-
-
+OPTION(MINIMD_USE_TEAM_POLICY "" ON)
 
 add_executable(miniMD 
 atom.cpp
@@ -24,6 +21,9 @@ thermo.cpp
 timer.cpp
 )
 target_link_libraries(miniMD Kokkos::kokkos)
+if(MINIMD_USE_TEAM_POLICY)
+  target_compile_definitions(miniMD MINIMD_USE_TEAM_POLICY)
+endif()
 
 
 if(MINIMD_ENABLE_MPI)

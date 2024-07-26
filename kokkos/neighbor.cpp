@@ -113,10 +113,19 @@ void Neighbor::build(Atom &atom)
         int vector_length = 32;
         while(vector_length>atoms_per_bin) vector_length/=2;
         shared_mem_size = (2*team_size +2*nextx) * atoms_per_bin * (3*sizeof(float) + 2 * sizeof(int));
-        if(halfneigh)
+        if(halfneigh) {
+#if defined(MINIMD_USE_TEAM_POLICY)
           Kokkos::parallel_for(Kokkos::TeamPolicy<TagNeighborBuild<1,1> >((mbinx-2*nextx)*(mbiny-2*nexty)*(mbinz-2*nextz)/team_size,team_size,vector_length), *this);
-        else
+#else
+  throw std::runtime_error("miniMD execution required TeamPolicy, but MINIMD_USE_TEAM_POLICY is undefined");
+#endif
+        } else {
+#if defined(MINIMD_USE_TEAM_POLICY)
           Kokkos::parallel_for(Kokkos::TeamPolicy<TagNeighborBuild<0,1> >((mbinx-2*nextx)*(mbiny-2*nexty)*(mbinz-2*nextz)/team_size,team_size,vector_length), *this);
+#else
+  throw std::runtime_error("miniMD execution required TeamPolicy, but MINIMD_USE_TEAM_POLICY is undefined");
+#endif
+        }
         shared_mem_size = 0;
       }
     } else {
@@ -130,10 +139,19 @@ void Neighbor::build(Atom &atom)
         int vector_length = 32;
         while(vector_length>atoms_per_bin) vector_length/=2;
         shared_mem_size = (2*team_size +2*nextx) * atoms_per_bin * (3*sizeof(float) + 2 * sizeof(int));
-        if(halfneigh)
+        if(halfneigh) {
+#if defined(MINIMD_USE_TEAM_POLICY)
           Kokkos::parallel_for(Kokkos::TeamPolicy<TagNeighborBuild<1,0> >((mbinx-2*nextx)*(mbiny-2*nexty)*(mbinz-2*nextz)/team_size,team_size,vector_length), *this);
-        else
+#else
+  throw std::runtime_error("miniMD execution required TeamPolicy, but MINIMD_USE_TEAM_POLICY is undefined");
+#endif
+        } else {
+#if defined(MINIMD_USE_TEAM_POLICY)
           Kokkos::parallel_for(Kokkos::TeamPolicy<TagNeighborBuild<0,0> >((mbinx-2*nextx)*(mbiny-2*nexty)*(mbinz-2*nextz)/team_size,team_size,vector_length), *this);
+#else
+  throw std::runtime_error("miniMD execution required TeamPolicy, but MINIMD_USE_TEAM_POLICY is undefined");
+#endif
+        }
         shared_mem_size = 0;
       }
     }
