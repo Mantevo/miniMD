@@ -668,6 +668,7 @@ int Neighbor::setup(Atom &atom)
 
 /* compute closest distance between central bin (0,0,0) and bin (i,j,k) */
 
+KOKKOS_INLINE_FUNCTION
 MMD_float Neighbor::bindist(int i, int j, int k)
 {
   MMD_float delx, dely, delz;
