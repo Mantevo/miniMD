@@ -105,15 +105,17 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
   eng_vdwl = 0;
   virial = 0;
 
+  const int host_device = false 
 #if defined(KOKKOS_ENABLE_SERIAL)
-  const int host_device = std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::Serial>;
-#elif defined(KOKKOS_ENABLE_SERIAL) || defined(KOKKOS_ENABLE_OPENMP)
-  const int host_device = std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::Serial>
-                       || std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::OpenMP>;
-#elif defined(KOKKOS_ENABLE_SERIAL) || defined(KOKKOS_ENABLE_THREADS)
-  const int host_device = std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::Serial>
-                       || std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::Threads>;
+  || std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::Serial>
 #endif
+#if defined(KOKKOS_ENABLE_OPENMP)
+  || std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::OpenMP>
+#endif
+#if defined(KOKKOS_ENABLE_THREADS)
+  || std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::Threads>
+#endif
+;
   nlocal = atom.nlocal;
   nall = atom.nlocal + atom.nghost;
 
