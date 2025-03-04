@@ -315,6 +315,7 @@ int main(int argc, char** argv)
   Kokkos::InitializationSettings args_kokkos;
   args_kokkos.set_num_threads(num_threads);
   args_kokkos.set_device_id(device);
+  (void) teams; // unused variable
 #endif
   Kokkos::initialize(args_kokkos);
   // Scope Guard

@@ -97,7 +97,7 @@ class Neighbor
     void operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> ,
                      const typename Kokkos::TeamPolicy<TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> >::member_type&) const;
 
-    size_t team_shmem_size( int team_size ) const {
+    size_t team_shmem_size(int) const {
       return shared_mem_size;
     }
 

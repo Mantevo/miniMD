@@ -389,7 +389,7 @@ int Atom::unpack_exchange(int i, MMD_float* buf) const
 }
 
 KOKKOS_INLINE_FUNCTION
-int Atom::skip_exchange(MMD_float* buf)
+int Atom::skip_exchange(MMD_float* /* buf */)
 {
   return 7;
 }

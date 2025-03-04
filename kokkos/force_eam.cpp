@@ -96,7 +96,7 @@ void ForceEAM::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 }
 /* ---------------------------------------------------------------------- */
 
-void ForceEAM::compute_halfneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
+void ForceEAM::compute_halfneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int /* me */)
 {
   virial = 0;
   // grow energy and fp arrays if necessary
@@ -348,7 +348,7 @@ void ForceEAM::operator() (TagHalfNeighFinal<EVFLAG> , const int& i, eng_virial_
 }
 /* ---------------------------------------------------------------------- */
 
-void ForceEAM::compute_fullneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
+void ForceEAM::compute_fullneigh(Atom &atom, Neighbor &neighbor, Comm &comm, int /* me */)
 {
 
   eng_virial_type t_eng_virial;
@@ -927,11 +927,12 @@ void ForceEAM::grab(FILE* fptr, MMD_int n, MMD_float* list)
     ptr = strtok(line, " \t\n\r\f");
     list[i++] = atof(ptr);
 
-    while(ptr = strtok(NULL, " \t\n\r\f")) list[i++] = atof(ptr);
+    ptr = strtok(NULL, " \t\n\r\f");
+    while(ptr) list[i++] = atof(ptr);
   }
 }
 
-void ForceEAM::communicate(Atom &atom, Comm &comm)
+void ForceEAM::communicate(Atom & /* atom */, Comm &comm)
 {
 
   int iswap;
@@ -941,7 +942,7 @@ void ForceEAM::communicate(Atom &atom, Comm &comm)
 
     /* pack buffer */
 
-    int size = pack_comm(comm.sendnum[iswap], iswap, comm.buf_send, comm.sendlist);
+    (void) pack_comm(comm.sendnum[iswap], iswap, comm.buf_send, comm.sendlist);
 
     /* exchange with another proc
        if self, set recv buffer to send buffer */

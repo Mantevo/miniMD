@@ -391,13 +391,13 @@ void Comm::exchange(Atom &atom_)
 
     nlocal = atom.nlocal;
 
-    if (exc_sendflag.extent(0)<nlocal) {
+    if (static_cast<int>(exc_sendflag.extent(0)) < nlocal) {
       Kokkos::resize(exc_sendflag,nlocal);
     }
 
     count.h_view(0) = exc_sendlist.extent(0);
 
-    while (count.h_view(0)>=exc_sendlist.extent(0)) {
+    while (count.h_view(0) >= static_cast<int>(exc_sendlist.extent(0))) {
       count.h_view(0) = 0;
       count.modify<HostType>();
       count.sync<DeviceType>();
@@ -407,13 +407,13 @@ void Comm::exchange(Atom &atom_)
 
       count.modify<DeviceType>();
       count.sync<HostType>();
-      if ((count.h_view(0)>=exc_sendlist.extent(0)) ||
-          (count.h_view(0)>=exc_copylist.extent(0)) ) {
+      if ((count.h_view(0) >= static_cast<int>(exc_sendlist.extent(0))) ||
+          (count.h_view(0) >= static_cast<int>(exc_copylist.extent(0))) ) {
         Kokkos::resize(exc_sendlist,(count.h_view(0)+1)*1.1);
         Kokkos::resize(exc_copylist,(count.h_view(0)+1)*1.1);
-        count.h_view(0)=exc_sendlist.extent(0);
+        count.h_view(0) = exc_sendlist.extent(0);
       }
-      if (count.h_view(0)*7>=maxsend)
+      if (count.h_view(0)*7 >= maxsend)
         growsend(count.h_view(0));
     }
     h_exc_sendflag = Kokkos::create_mirror_view(exc_sendflag);
@@ -502,7 +502,7 @@ KOKKOS_INLINE_FUNCTION
 void Comm::operator() (TagExchangeSendlist, const int& i) const {
   if (x(i,idim) < lo || x(i,idim) >= hi) {
     const int mysend=Kokkos::atomic_fetch_add(&count.d_view(0),1);
-    if(mysend<exc_sendlist.extent(0)) {
+    if(mysend < static_cast<int>(exc_sendlist.extent(0))) {
       exc_sendlist(mysend) = i;
       exc_sendflag(i) = 1;
     }
@@ -598,7 +598,7 @@ void Comm::borders(Atom &atom_)
       count.sync<HostType>();
 
       nsend = count.h_view(0);
-      if(nsend > exc_sendlist.extent(0)) {
+      if(nsend > static_cast<int>(exc_sendlist.extent(0))) {
         Kokkos::resize(exc_sendlist , nsend);
 
         growlist(iswap, nsend);
@@ -687,7 +687,7 @@ KOKKOS_INLINE_FUNCTION
 void Comm::operator() (TagBorderSendlist, const int& i) const {
   if(x(i,idim) >= lo && x(i,idim) <= hi) {
     const int nsend = (send_count(0)+=1)-1;
-    if(nsend < exc_sendlist.extent(0)) {
+    if(nsend < static_cast<int>(exc_sendlist.extent(0))) {
       exc_sendlist[nsend] = i;
     }
   }

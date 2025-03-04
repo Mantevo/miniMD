@@ -125,7 +125,7 @@ class Comm
   private:
     Atom atom;
     int idim,n,iswap;
-    MMD_float lo, hi, value;
+    MMD_float lo, hi;
     x_view_type x;
     int pbc_flags[4];
     int_1d_atomic_view_type send_count;

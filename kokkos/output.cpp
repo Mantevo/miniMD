@@ -85,12 +85,14 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     return;
   }
 
-  /* long-range energy and pressure corrections Whats this???*/
+  /* long-range energy and pressure corrections; in the dark past this got printed */
 
+  /*
   double engcorr = 8.0 * 3.1415926 * in.rho *
                    (1.0 / (9.0 * pow(force->cutforce, MMD_float(9.0))) - 1.0 / (3.0 * pow(force->cutforce, MMD_float(3.0))));
   double prscorr = 8.0 * 3.1415926 * in.rho * in.rho *
                    (4.0 / (9.0 * pow(force->cutforce, MMD_float(9.0))) - 2.0 / (3.0 * pow(force->cutforce, MMD_float(3.0))));
+  */
 
   /* thermo output */
 
@@ -103,7 +105,7 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
     struct tm local_time = *localtime(&general_time);
     char filename[256];
 
-    sprintf(filename, "miniMD-%4d-%02d-%02d-%02d-%02d-%02d.yaml",
+    snprintf(filename, 255, "miniMD-%4d-%02d-%02d-%02d-%02d-%02d.yaml",
             local_time.tm_year + 1900, local_time.tm_mon + 1, local_time.tm_mday,
             local_time.tm_hour, local_time.tm_min, local_time.tm_sec);
 
@@ -204,9 +206,11 @@ void output(In &in, Atom &atom, Force* force, Neighbor &neighbor, Comm &comm,
   double time_total = timer.array[TIME_TOTAL];
   MPI_Allreduce(&time_total, &tmp, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   time_total = tmp / nprocs;
+  /* if we ever wanted to compute an estimate of the mflops
   double mflops = 4.0 / 3.0 * 3.1415926 *
                   pow(force->cutforce, MMD_float(3.0)) * in.rho * 0.5 *
                   23 * natoms * integrate.ntimes / time_total / 1000000.0;
+  */
 
   if(me == 0) {
     if(screen_yaml) {

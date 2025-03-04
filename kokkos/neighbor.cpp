@@ -150,6 +150,7 @@ void Neighbor::build(Atom &atom)
 template<int HALF_NEIGH,bool STACK_ARRAYS>
 KOKKOS_INLINE_FUNCTION
 void Neighbor::operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> , const typename Kokkos::RangePolicy<TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> >::member_type& i) const {
+  using idx_t = typename Kokkos::RangePolicy<TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> >::member_type;
   int n = 0;
 
   const MMD_float xtmp = x(i,0);
@@ -167,11 +168,11 @@ void Neighbor::operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> , const typ
 
     if(ibin == jbin)
       for(int m = 0; m < bincount[jbin]; m++) {
-        const int j = bins(jbin,m);
+        const idx_t j = bins(jbin,m);
 
         //for same bin as atom i skip j if i==j and skip atoms "below and to the left" if using halfneighborlists
         if(((j == i) || (HALF_NEIGH && !ghost_newton && (j < i)) ||
-            (HALF_NEIGH && ghost_newton && ((j < i) || ((j >= nlocal) &&
+            (HALF_NEIGH && ghost_newton && ((j < i) || ((j >= static_cast<idx_t>(nlocal)) &&
                                            ((x(j,2) < ztmp) || (x(j,2) == ztmp && x(j,1) < ytmp) ||
                                             (x(j,2) == ztmp && x(j,1)  == ytmp && x(j,0) < xtmp))))))) continue;
 
@@ -188,7 +189,7 @@ void Neighbor::operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> , const typ
       }
     else {
       for(int m = 0; m < bincount[jbin]; m++) {
-        const int j = bins(jbin,m);
+        const idx_t j = bins(jbin,m);
 
         if(halfneigh && !ghost_newton && (j < i)) continue;
 
@@ -241,7 +242,7 @@ void Neighbor::operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> , const typ
   t_shared_pos    other_x(team_member.team_shmem(),atoms_per_bin,team_member.team_size()+2*nextx);
 
   // Get the count of atoms in the owned bin
-  int bincount_current = ibin >=bincount.extent(0)?0:bincount[ibin];
+  int bincount_current = ibin >= static_cast<int>(bincount.extent(0))?0:bincount[ibin];
 
   // Load atoms in the owned bin. Each Thread loads one bin
   Kokkos::parallel_for(Kokkos::ThreadVectorRange(team_member,bincount_current), [&] (const int& ii) {
@@ -317,7 +318,7 @@ void Neighbor::operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> , const typ
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member,team_member.team_size()+2*nextx), [&] (const int xx) {
         const int team_start_bin = ibin-team_member.team_rank();
         const int jbin = team_start_bin + zz*mbiny*mbinx + yy*mbinx + xx - nextx;
-        const int j_bincount_current = (jbin>=bincount.extent(0)?0:bincount[jbin]);
+        const int j_bincount_current = (jbin >= static_cast<int>(bincount.extent(0))?0:bincount[jbin]);
 
         Kokkos::parallel_for(Kokkos::ThreadVectorRange(team_member,j_bincount_current), [&] (const int& jj) {
           const int j = bins(jbin,jj);
@@ -355,7 +356,7 @@ void Neighbor::operator() (TagNeighborBuild<HALF_NEIGH,STACK_ARRAYS> , const typ
           // What is the current neighbor bin of this threads owned bin
           const int jbin = team_member.team_rank() + xx;
           // Get the atom count in that bin
-          const int j_bincount_current = jbin>=bincount.extent(0)?0:bincount[ibin+zz*mbiny*mbinx + yy*mbinx + xx - nextx];
+          const int j_bincount_current = jbin>= static_cast<int>(bincount.extent(0))?0:bincount[ibin+zz*mbiny*mbinx + yy*mbinx + xx - nextx];
 
           // Loop over the neighbor bin
           #pragma unroll 8

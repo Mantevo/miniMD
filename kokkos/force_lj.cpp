@@ -98,15 +98,15 @@ void ForceLJ::setup()
 }
 
 
-void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
+void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm & /* comm */, int me)
 {
   eng_vdwl = 0;
   virial = 0;
 
-#if defined(KOKKOS_ENABLE_CUDA) || defined(KOKKOS_ENABEL_ROCM)
-  const int host_device = 0;
+#if defined(KOKKOS_ENABLE_CUDA) || defined(KOKKOS_ENABEL_ROCM) || defined(KOKKOS_ENABLE_SYCL)
+  int host_device = 0;
 #else
-  const int host_device = 1;
+  int host_device = 1;
 #endif
 
   nlocal = atom.nlocal;
@@ -168,7 +168,7 @@ void ForceLJ::compute(Atom &atom, Neighbor &neighbor, Comm &comm, int me)
 //  -MPI only
 //  -not vectorizable
 template<int EVFLAG>
-void ForceLJ::compute_original(Atom &atom, Neighbor &neighbor, int me)
+void ForceLJ::compute_original(Atom & /* atom */, Neighbor & /* neighbor */, int /* me */)
 {
   eng_vdwl = 0;
   virial = 0;
@@ -216,7 +216,7 @@ void ForceLJ::compute_original(Atom &atom, Neighbor &neighbor, int me)
 
 //Not Thread-safe variant of force kernel using half-neighborlists
 template<int EVFLAG, int GHOST_NEWTON>
-void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
+void ForceLJ::compute_halfneigh(Atom & /* atom */, Neighbor & /* neighbor */, int /* me */)
 {
 
   // loop over all neighbors of my atoms
@@ -285,7 +285,7 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
 
 //Thread-safe variant of force kernel using half-neighborlists with atomics
 template<int EVFLAG, int GHOST_NEWTON>
-void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
+void ForceLJ::compute_halfneigh_threaded(Atom & /* atom */, Neighbor & /* neighbor */, int /* me */)
 {
   eng_virial_type t_eng_virial;
 
@@ -313,7 +313,7 @@ void ForceLJ::compute_halfneigh_threaded(Atom &atom, Neighbor &neighbor, int me)
 //        2x reads, 0x writes (reads+writes the same as with half)
 //        2x flops
 template<int EVFLAG>
-void ForceLJ::compute_fullneigh(Atom &atom, Neighbor &neighbor, int me)
+void ForceLJ::compute_fullneigh(Atom & /* atom */, Neighbor & /* neighbor */, int /* me */)
 {
   eng_virial_type t_eng_virial;
 

@@ -104,7 +104,7 @@ void read_lammps_header(Atom &atom)
 
   // skip 1st line of file
 
-  char* eof = fgets(line, MAXLINE, fp);
+  (void) fgets(line, MAXLINE, fp);
 
   // customize for new header lines
   int ntypes = 0;
@@ -124,7 +124,8 @@ void read_lammps_header(Atom &atom)
 
     double xlo, xhi, ylo, yhi, zlo, zhi;
 
-    if(ptr = strchr(line, '#')) * ptr = '\0';
+    ptr = strchr(line, '#');
+    if(ptr) * ptr = '\0';
 
     if(strspn(line, " \t\n\r") == strlen(line)) continue;
 
@@ -160,7 +161,7 @@ void read_lammps_header(Atom &atom)
 
   if(n == NSECTIONS) {
     char str[128];
-    sprintf(str, "Unknown identifier in data file: %s", keyword);
+    snprintf(str, 127, "Unknown identifier in data file: %s", keyword);
   }
 
   // error check on consistency of header values
@@ -218,7 +219,7 @@ int read_lammps_data(Atom &atom, Comm &comm, Neighbor &neighbor, Integrate &inte
 
   if(fp == NULL) {
     char str[128];
-    sprintf(str, "Cannot open file %s", file);
+    snprintf(str, 127, "Cannot open file %s", file);
   }
 
   read_lammps_header(atom);
