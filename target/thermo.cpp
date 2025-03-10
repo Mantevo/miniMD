@@ -37,7 +37,7 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "util.h"
-#include <omp.h>
+#include "openmp.h"
 
 Thermo::Thermo() {}
 Thermo::~Thermo() {}
