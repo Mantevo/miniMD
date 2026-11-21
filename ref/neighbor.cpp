@@ -165,18 +165,19 @@ void Neighbor::build(Atom &atom)
             if((rsq <= cutneighsq[type_i*ntypes+type_j])) neighptr[n++] = j;
           }
         else {
-          for(int m = 0; m < bincount[jbin]; m++) {
+          const bool skip_lower = halfneigh && !ghost_newton;
+          const int count = bincount[jbin];
+
+          for(int m = 0; m < count; m++) {
             const int j = loc_bin[m];
-
-            if(halfneigh && !ghost_newton && (j < i)) continue;
-
             const MMD_float delx = xtmp - x[j * PAD + 0];
             const MMD_float dely = ytmp - x[j * PAD + 1];
             const MMD_float delz = ztmp - x[j * PAD + 2];
             const int type_j = type[j];
             const MMD_float rsq = delx * delx + dely * dely + delz * delz;
 
-            if((rsq <= cutneighsq[type_i*ntypes+type_j])) neighptr[n++] = j;
+            neighptr[n] = j;
+            n += (rsq <= cutneighsq[type_i*ntypes+type_j]) & !(skip_lower & (j < i));
           }
         }
       }
