@@ -173,11 +173,10 @@ void Neighbor::build(Atom &atom)
             const MMD_float delx = xtmp - x[j * PAD + 0];
             const MMD_float dely = ytmp - x[j * PAD + 1];
             const MMD_float delz = ztmp - x[j * PAD + 2];
-            const int type_j = type[j];
             const MMD_float rsq = delx * delx + dely * dely + delz * delz;
 
             neighptr[n] = j;
-            n += (rsq <= cutneighsq[type_i*ntypes+type_j]) & !(skip_lower & (j < i));
+            n += (rsq <= cutneighsq[type_i*ntypes+type[j]]) & !(skip_lower & (j < i));
           }
         }
       }
