@@ -84,6 +84,8 @@ int main(int argc, char** argv)
   int sort = -1;
   int ntypes = 4;
 
+  fprintf(stderr, "hello, world!\n");
+
   for(int i = 0; i < argc; i++) {
     if((strcmp(argv[i], "-i") == 0) || (strcmp(argv[i], "--input_file") == 0)) {
       input_file = argv[++i];
