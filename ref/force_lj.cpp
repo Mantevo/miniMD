@@ -202,6 +202,9 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
   // store force on both atoms i and j
   MMD_float t_energy = 0;
   MMD_float t_virial = 0;
+  
+  //优化：把截断半径的平方 cutforcesq[0] 提到循环外，存成一个常量标量
+  const MMD_float cutforcesq0 = cutforcesq[0];
 
   for(int i = 0; i < nlocal; i++) {
     const int* const neighs = &neighbor.neighbors[i * neighbor.maxneighs];
@@ -220,14 +223,16 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
 #endif
     for(int k = 0; k < numneighs; k++) {
       const int j = neighs[k];
-      const MMD_float delx = xtmp - x[j * PAD + 0];
-      const MMD_float dely = ytmp - x[j * PAD + 1];
-      const MMD_float delz = ztmp - x[j * PAD + 2];
-      const int type_j = type[j];
+      const int jp = j * PAD;
+      const MMD_float delx = xtmp - x[jp + 0];
+      const MMD_float dely = ytmp - x[jp + 1];
+      const MMD_float delz = ztmp - x[jp + 2];
       const MMD_float rsq = delx * delx + dely * dely + delz * delz;
-      const int type_ij = type_i*ntypes+type_j;
 
-      if(rsq < cutforcesq[type_ij]) {
+      //Nouveau Changement
+      if(rsq < cutforcesq0) {
+        const int type_j = type[j];
+        const int type_ij = type_i*ntypes+type_j;
         const MMD_float sr2 = 1.0 / rsq;
         const MMD_float sr6 = sr2 * sr2 * sr2 * sigma6[type_ij];
         const MMD_float force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon[type_ij];
@@ -237,9 +242,9 @@ void ForceLJ::compute_halfneigh(Atom &atom, Neighbor &neighbor, int me)
         fiz += delz * force;
 
         if(GHOST_NEWTON || j < nlocal) {
-          f[j * PAD + 0] -= delx * force;
-          f[j * PAD + 1] -= dely * force;
-          f[j * PAD + 2] -= delz * force;
+          f[jp + 0] -= delx * force;
+          f[jp + 1] -= dely * force;
+          f[jp + 2] -= delz * force;
         }
 
         if(EVFLAG) {
